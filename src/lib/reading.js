@@ -196,3 +196,8 @@ export function summarize(palaces) {
     sub: worst.grade === 'bad' ? `${worst.domain}만 챙기면 운이 더 커집니다` : '크게 약한 자리 없이 고른 상입니다',
   };
 }
+
+/** 유년운기 자리 전체와 각 자리의 등급 (관상도에 쓴다) */
+export function zoneGrades(m) {
+  return ZONES.map((z) => ({ from: z.from, to: z.to, area: z.area, grade: gradeOf(z.score(m)) }));
+}

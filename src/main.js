@@ -1,12 +1,13 @@
 import { computeSaju, ELEMENTS, ELEMENTS_HANJA, ELEMENT_TRAIT, DAY_STEM_TEXT, STEM_ELEMENT, BRANCH_ELEMENT } from './lib/saju.js';
 import { computeMetrics, averageMetrics, poseIssue, readFeatures, FACE_TYPES } from './lib/physiognomy.js';
 import { kingVerdict } from './lib/king.js';
-import { readPalaces, readThirds, summarize, yearlyFlow, GRADE, UNREADABLE_PALACES } from './lib/reading.js';
+import { readPalaces, readThirds, summarize, yearlyFlow, zoneGrades, GRADE, UNREADABLE_PALACES } from './lib/reading.js';
 import { bridgeReading } from './lib/bridge.js';
 import { CITIES, ELEMENT_DIRECTION, evaluateLocation, readExifGps } from './lib/location.js';
 import { toPerson, encodePerson, decodePerson, compatibility } from './lib/compat.js';
 import { josa } from './lib/josa.js';
 import { buildGraph } from './graph.js';
+import { buildFaceChart } from './chart.js';
 import { detect, loadLandmarker } from './face.js';
 
 const $ = (s) => document.querySelector(s);
@@ -110,7 +111,10 @@ $('#birth-year').addEventListener('change', (e) => setBirthYear(e.target.value))
 function setBirthYear(v) {
   state.birthYear = v ? Number(v) : null;
   store.set('birthYear', state.birthYear);
-  if (state.face?.metrics && !$('#step-result').hidden) renderYearly();
+  if (state.face?.metrics && !$('#step-result').hidden) {
+    renderYearly();
+    renderChart();
+  }
 }
 
 const video = $('#video');
@@ -231,6 +235,7 @@ function renderResult() {
     </ul>`;
 
   renderYearly();
+  renderChart();
 
   $('#palaces').innerHTML = `
     <h2>십이궁(十二宮) 풀이</h2>
@@ -275,6 +280,36 @@ function renderResult() {
     for (const id of ['premium', 'place', 'friends']) $(`#${id}`).hidden = true;
   }
 }
+
+// ── 관상도 ──
+let chartMode = 'palace';
+function currentChart() {
+  const now = state.birthYear ? { year: THIS_YEAR, age: THIS_YEAR - state.birthYear + 1 } : null;
+  return buildFaceChart({ metrics: state.face.metrics, mode: chartMode, palaces: state.palaces, zones: zoneGrades(state.face.metrics), now });
+}
+function renderChart() {
+  $('#chart').innerHTML = currentChart().svg;
+  $('#chart-palace').setAttribute('aria-selected', String(chartMode === 'palace'));
+  $('#chart-yearly').setAttribute('aria-selected', String(chartMode === 'yearly'));
+}
+for (const [id, mode] of [['#chart-palace', 'palace'], ['#chart-yearly', 'yearly']]) {
+  $(id).addEventListener('click', () => {
+    chartMode = mode;
+    renderChart();
+  });
+}
+$('#btn-chart-png').addEventListener('click', async () => {
+  const { svg, width, height } = currentChart();
+  const img = new Image();
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await img.decode();
+  const scale = 1080 / width;
+  const c = document.createElement('canvas');
+  c.width = 1080;
+  c.height = Math.round(height * scale);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  await saveCanvas(c, chartMode === 'palace' ? '십이궁도.png' : '유년운기도.png');
+});
 
 function renderYearly() {
   const box = $('#yearly');

@@ -55,6 +55,18 @@
         <div id="summary" class="card summary-card"></div>
         <div id="yearly" class="card"></div>
 
+        <div id="chart-card" class="card">
+          <p class="eyebrow">나의 관상도</p>
+          <h2>내 얼굴 위에 그린 십이궁과 운기</h2>
+          <p class="hint">사진이 아니라 측정한 얼굴 비율로 다시 그린 그림이에요. 사진과 얼굴 좌표는 저장하지 않아요.</p>
+          <div class="seg" role="tablist" aria-label="관상도 종류">
+            <button role="tab" id="chart-palace" aria-selected="true">십이궁도</button>
+            <button role="tab" id="chart-yearly" aria-selected="false">유년운기도</button>
+          </div>
+          <div id="chart"></div>
+          <button id="btn-chart-png">관상도 이미지 저장</button>
+        </div>
+
         <div class="row buttons">
           <button id="btn-card" class="primary">결과 이미지 저장</button>
           <button id="btn-share">친구에게 공유</button>

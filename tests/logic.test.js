@@ -178,3 +178,20 @@ test('십이궁·유년운기·삼정·총평', async () => {
   // 경계 나이 모두 자리 있음
   for (let age = 15; age <= 110; age++) assert.ok(r.zoneAt(age), `age ${age}`);
 });
+
+test('관상도: 측정 비율만으로 SVG 생성, 이상값도 범위 안에서 그림', async () => {
+  const { buildFaceChart, faceGeometry } = await import('../src/chart.js');
+  const r = await import('../src/lib/reading.js');
+  const m = avg();
+  for (const mode of ['palace', 'yearly']) {
+    const c = buildFaceChart({ metrics: m, mode, palaces: r.readPalaces(m), zones: r.zoneGrades(m), now: { year: 2026, age: 42 } });
+    assert.match(c.svg, /^<svg/);
+    assert.ok(!c.svg.includes('NaN'));
+  }
+  const g = faceGeometry({ ...m, aspect: 9, jaw: -3 });
+  assert.ok(g.chinY < 600 && g.jw > 0);
+  // 옛 저장 데이터(새 지표 없음)도 그림
+  const old = Object.fromEntries(Object.entries(m).filter(([k]) => !['browGap', 'browLen', 'browEye', 'foreheadW', 'bridgeDepth', 'philtrum'].includes(k)));
+  const c = buildFaceChart({ metrics: old, mode: 'yearly', palaces: r.readPalaces(old), zones: r.zoneGrades(old), now: null });
+  assert.ok(!c.svg.includes('NaN'));
+});
