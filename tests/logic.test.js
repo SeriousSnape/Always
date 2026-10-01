@@ -151,3 +151,30 @@ test('왕기 분포: 측정값이 기준 분포를 따르면 왕은 소수(2~15%
   }
   assert.ok(kings / N > 0.02 && kings / N < 0.15, `왕 비율 ${kings / N}`);
 });
+
+test('십이궁·유년운기·삼정·총평', async () => {
+  const r = await import('../src/lib/reading.js');
+  const m = avg();
+  const palaces = r.readPalaces(m);
+  assert.equal(palaces.length, 10);
+  assert.ok(palaces.every((p) => p.grade === 'mid' && p.text));
+  // 콧대·콧방울이 크면 재백궁 길, 주의 궁에는 개운법
+  const rich = r.readPalaces({ ...m, noseLength: 0.34, noseWidth: 0.27, browGap: 0.7 });
+  assert.equal(rich.find((p) => p.key === 'jaebaek').grade, 'good');
+  const myung = rich.find((p) => p.key === 'myung');
+  assert.equal(myung.grade, 'bad');
+  assert.ok(myung.tip);
+  const s = r.summarize(rich);
+  assert.equal(s.best.key, 'jaebaek');
+  assert.equal(s.headline, '재물이 가장 빛나는 얼굴');
+  // 세는 나이: 2026년에 1985년생은 42세 → 산근
+  assert.equal(r.koreanAge(1985, 2026), 42);
+  const flow = r.yearlyFlow(m, 1985, 2026);
+  assert.equal(flow.length, 5);
+  assert.match(flow[0].area, /산근/);
+  assert.match(flow[3].area, /콧대/); // 45세
+  assert.equal(r.yearlyFlow(m, 2015, 2026)[0].zone, null); // 12세
+  assert.equal(r.readThirds(m).length, 3);
+  // 경계 나이 모두 자리 있음
+  for (let age = 15; age <= 110; age++) assert.ok(r.zoneAt(age), `age ${age}`);
+});

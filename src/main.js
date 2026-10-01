@@ -1,6 +1,7 @@
 import { computeSaju, ELEMENTS, ELEMENTS_HANJA, ELEMENT_TRAIT, DAY_STEM_TEXT, STEM_ELEMENT, BRANCH_ELEMENT } from './lib/saju.js';
 import { computeMetrics, averageMetrics, poseIssue, readFeatures, FACE_TYPES } from './lib/physiognomy.js';
 import { kingVerdict } from './lib/king.js';
+import { readPalaces, readThirds, summarize, yearlyFlow, GRADE, UNREADABLE_PALACES } from './lib/reading.js';
 import { bridgeReading } from './lib/bridge.js';
 import { CITIES, ELEMENT_DIRECTION, evaluateLocation, readExifGps } from './lib/location.js';
 import { toPerson, encodePerson, decodePerson, compatibility } from './lib/compat.js';
@@ -43,6 +44,7 @@ const store = {
 const state = {
   face: store.get('face'), // { metrics }
   profile: store.get('profile'), // 사주 단계에서만 입력
+  birthYear: store.get('birthYear'), // 유년운기용 (선택)
   friends: store.get('friends', []),
   home: store.get('home'),
   photoGps: null,
@@ -94,6 +96,21 @@ if (store.get('consent')) {
   $('#agree-age').checked = true;
   $('#agree-face').checked = true;
   syncConsent();
+}
+
+// 태어난 해 (선택) — 유년운기에 쓴다
+const THIS_YEAR = new Date().getFullYear();
+const yearOptions = Array.from({ length: THIS_YEAR - 14 - 1930 + 1 }, (_, i) => THIS_YEAR - 14 - i)
+  .map((y) => `<option value="${y}">${y}년</option>`)
+  .join('');
+$('#birth-year').insertAdjacentHTML('beforeend', yearOptions);
+if (state.birthYear) $('#birth-year').value = String(state.birthYear);
+$('#birth-year').addEventListener('change', (e) => setBirthYear(e.target.value));
+
+function setBirthYear(v) {
+  state.birthYear = v ? Number(v) : null;
+  store.set('birthYear', state.birthYear);
+  if (state.face?.metrics && !$('#step-result').hidden) renderYearly();
 }
 
 const video = $('#video');
@@ -194,11 +211,51 @@ function drawLandmarks(lm, w, h) {
 // ── 2. 관상 결과 ──
 const elBadge = (el) => `<span class="el el-${el}">${ELEMENTS[el]}${ELEMENTS_HANJA[el]}</span>`;
 
+const chip = (grade) => `<span class="chip chip-${GRADE[grade].tone}">${GRADE[grade].short}</span>`;
+
 function renderResult() {
-  const v = (state.verdict = kingVerdict(state.face.metrics));
+  const m = state.face.metrics;
+  const v = (state.verdict = kingVerdict(m));
   const ft = FACE_TYPES[v.el];
+  const palaces = (state.palaces = readPalaces(m));
+  const sum = (state.summary = summarize(palaces));
+
+  $('#summary').innerHTML = `
+    <p class="eyebrow">나의 관상 총평</p>
+    <h2 class="headline">${sum.headline}</h2>
+    <p class="sub">${sum.sub}</p>
+    <p class="tags">${sum.tags.map((t) => `<span>${t}</span>`).join('')}</p>
+    <p class="face-type">${ft.emoji} <b>${ft.name}</b> · ${ft.shape}<br>${ft.text}</p>
+    <ul class="palace-grid" aria-label="십이궁 한눈에 보기">
+      ${palaces.map((p) => `<li><a href="#palace-${p.key}"><span>${p.name}</span><small>${p.domain}</small>${chip(p.grade)}</a></li>`).join('')}
+    </ul>`;
+
+  renderYearly();
+
+  $('#palaces').innerHTML = `
+    <h2>십이궁(十二宮) 풀이</h2>
+    <p class="hint">얼굴의 열두 자리가 각각 인생의 한 분야를 맡는다고 보는 관상의 기본 틀이에요.</p>
+    ${palaces
+      .map(
+        (p) => `<article class="palace" id="palace-${p.key}">
+          <header><h3>${p.name} <small>${p.hanja}</small></h3>${chip(p.grade)}</header>
+          <p class="palace-area">${p.area} · ${p.domain}</p>
+          <p>${p.text}</p>
+          ${p.tip ? `<p class="tip">개운법 · ${p.tip}</p>` : ''}
+        </article>`,
+      )
+      .join('')}
+    <p class="fine">${UNREADABLE_PALACES}</p>`;
+
+  const thirds = readThirds(m);
+  $('#features').innerHTML = `
+    <h2>삼정(三停)과 오관(五官)</h2>
+    <ol class="thirds">${thirds.map((t) => `<li><b>${t.name}</b><small>${t.ages}</small><span>${t.area}</span>${chip(t.grade)}</li>`).join('')}</ol>
+    <dl class="reading">${readFeatures(m).map((r) => `<dt>${r.part}</dt><dd>${r.text}</dd>`).join('')}</dl>
+    <p class="fine">귀(채청관)는 사진에서 잘 보이지 않아 풀이에서 뺐어요. 풀이는 전통 관상 이론을 얼굴 비율 측정에 맞춰 옮긴 것이고, 과학적 예측이 아니에요.</p>`;
+
   $('#verdict').innerHTML = `
-    <p class="eyebrow">내가 왕이 될 상인가?</p>
+    <p class="eyebrow">덤 · 내가 왕이 될 상인가?</p>
     <p class="answer">${v.answer}</p>
     <div class="rank${v.isKing ? ' king' : ''}">
       <span class="rank-hanja" aria-hidden="true">${v.hanja}</span>
@@ -208,13 +265,7 @@ function renderResult() {
       <div class="meter-bar"><i style="--w:${v.score}%"></i><b class="meter-king" title="왕"></b></div>
       <p><span>왕기(王氣) 지수</span><strong>${v.score}</strong></p>
     </div>
-    <p>${v.text}</p>
-    <p class="face-type">${ft.emoji} 얼굴형은 <b>${ft.name}</b> — ${ft.shape}. ${ft.text}</p>`;
-
-  $('#features').innerHTML = `
-    <h2>부위별 관상</h2>
-    <dl class="reading">${readFeatures(state.face.metrics).map((r) => `<dt>${r.part}</dt><dd>${r.text}</dd>`).join('')}</dl>
-    <p class="fine">왕기 지수는 좌우 대칭, 삼정(이마·코·턱) 균형, 콧대, 턱, 눈꼬리를 합산해요.</p>`;
+    <p>${v.text}</p>`;
 
   show('step-result');
   if (state.profile) renderSaju();
@@ -223,6 +274,48 @@ function renderResult() {
     $('#saju').hidden = true;
     for (const id of ['premium', 'place', 'friends']) $(`#${id}`).hidden = true;
   }
+}
+
+function renderYearly() {
+  const box = $('#yearly');
+  if (!state.birthYear) {
+    box.innerHTML = `
+      <p class="eyebrow">유년운기(流年運氣)</p>
+      <h2>올해 내 얼굴의 어느 자리가 운을 맡고 있을까?</h2>
+      <p>관상에서는 나이마다 운을 맡는 얼굴 자리가 정해져 있어요. 태어난 해를 고르면 올해와 앞으로 4년의 운을 읽어 드려요.</p>
+      <label>태어난 해 <select id="yearly-birth"><option value="">선택</option>${yearOptions}</select></label>`;
+    $('#yearly-birth').addEventListener('change', (e) => {
+      $('#birth-year').value = e.target.value;
+      setBirthYear(e.target.value);
+    });
+    return;
+  }
+  const flow = (state.flow = yearlyFlow(state.face.metrics, state.birthYear));
+  const now = flow[0];
+  box.innerHTML = `
+    <p class="eyebrow">유년운기 · ${now.year}년 · ${now.age}세(세는 나이)</p>
+    ${
+      now.area
+        ? `<h2>올해는 <em>${now.area}</em>의 해</h2>
+           <p class="yearly-theme">${now.range}는 이 자리가 <b>${josa(now.theme, '을/를')}</b> 맡아요. ${chip(now.grade)}</p>
+           <p>${now.text}</p>`
+        : `<p>${now.text}</p>`
+    }
+    <ol class="flow">${flow
+      .map(
+        (f) => `<li class="flow-${GRADE[f.grade].tone}"><b>${f.year}</b><small>${f.age}세</small><span>${f.area ? f.area.replace(/\(.*\)/, '') : '—'}</span>${chip(f.grade)}</li>`,
+      )
+      .join('')}</ol>
+    ${flow
+      .slice(1)
+      .filter((f, i) => f.area && f.area !== flow[i].area)
+      .map((f) => `<p class="next"><b>${f.year}년부터 ${f.area}</b> — ${f.text}</p>`)
+      .join('')}
+    <button class="link" id="btn-change-year">태어난 해 바꾸기</button>`;
+  $('#btn-change-year').addEventListener('click', () => {
+    $('#birth-year').value = '';
+    setBirthYear('');
+  });
 }
 
 // ── 3. 무료 1회 더: 관상 × 사주 ──
@@ -333,19 +426,22 @@ async function shareLink(text) {
 }
 
 $('#btn-share').addEventListener('click', () => {
-  const v = state.verdict;
-  shareLink(`나는 ${josa(v.title, '이/가')} 될 상이래 (왕기 ${v.score}점) 👑 너는 왕이 될 상이야?`);
+  const sum = state.summary;
+  const year = state.flow?.[0]?.area ? ` 올해는 ${state.flow[0].area.replace(/\(.*\)/, '')}의 해래.` : '';
+  shareLink(`내 관상은 '${sum.headline}' ${sum.tags.join(' ')}${year} 너도 봐 봐 👀`);
 });
 
 $('#btn-card').addEventListener('click', async () => {
-  const v = state.verdict;
-  const ft = FACE_TYPES[v.el];
-  await Promise.all(['900 300px', '700 48px', '400 36px'].map((f) => document.fonts.load(`${f} "Noto Serif KR"`, v.hanja + v.title))).catch(() => {});
+  const sum = state.summary;
+  const ft = FACE_TYPES[state.verdict.el];
+  const now = state.flow?.[0];
+  await Promise.all(['900 80px', '700 44px', '400 34px'].map((f) => document.fonts.load(`${f} "Noto Serif KR"`, sum.headline))).catch(() => {});
   const c = document.createElement('canvas');
   c.width = 1080;
   c.height = 1350;
   const g = c.getContext('2d');
   const font = (w, size) => `${w} ${size}px "Noto Serif KR", "Nanum Myeongjo", serif`;
+  const sans = (w, size) => `${w} ${size}px Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
   g.fillStyle = '#1d1712';
   g.fillRect(0, 0, c.width, c.height);
   g.strokeStyle = '#c9a24a';
@@ -354,33 +450,46 @@ $('#btn-card').addEventListener('click', async () => {
   g.strokeRect(64, 64, 952, 1222);
   g.textAlign = 'center';
   g.fillStyle = '#c9a24a';
-  g.font = font(500, 40);
-  g.fillText(state.profile?.name ? `${state.profile.name}님은` : '내가 왕이 될 상인가?', 540, 170);
+  g.font = sans(600, 34);
+  g.fillText(state.profile?.name ? `${state.profile.name}님의 관상` : '나의 관상 총평', 540, 160);
   g.fillStyle = '#f3e3c3';
-  g.font = font(500, 44);
-  g.fillText(v.answer, 540, 250);
-  g.fillStyle = v.isKing ? '#e8c060' : '#f3e3c3';
-  g.font = font(900, 300);
-  g.fillText(v.hanja.length > 2 ? v.hanja.slice(0, 2) : v.hanja, 540, 590);
-  g.font = font(800, 92);
-  g.fillText(`${v.title}의 상`, 540, 740);
-  // 왕기 막대
-  g.fillStyle = '#3a2f25';
-  g.fillRect(190, 820, 700, 22);
-  g.fillStyle = '#c9a24a';
-  g.fillRect(190, 820, 7 * v.score, 22);
-  g.fillStyle = '#f3e3c3';
-  g.font = font(700, 48);
-  g.fillText(`왕기(王氣) ${v.score}`, 540, 920);
-  g.font = font(400, 36);
-  wrap(g, v.text, 540, 1010, 860, 54);
+  g.font = font(900, 76);
+  let y = wrap(g, sum.headline, 540, 280, 860, 96);
+  g.font = sans(400, 36);
   g.fillStyle = '#bfae95';
-  g.font = font(400, 34);
-  g.fillText(`${ft.emoji} ${ft.name}`, 540, 1180);
+  y = wrap(g, sum.sub, 540, y + 70, 860, 50);
+  g.fillStyle = '#c9a24a';
+  g.font = sans(700, 38);
+  g.fillText(sum.tags.join('  '), 540, y + 80);
+  // 십이궁 등급
+  const ps = state.palaces;
+  const colW = 860 / 5;
+  ps.forEach((p, i) => {
+    const x = 110 + colW * (i % 5) + colW / 2;
+    const yy = y + 180 + Math.floor(i / 5) * 110;
+    g.fillStyle = '#f3e3c3';
+    g.font = sans(600, 30);
+    g.fillText(p.name, x, yy);
+    g.fillStyle = p.grade === 'good' ? '#e8c060' : p.grade === 'bad' ? '#e0846f' : '#8c7b64';
+    g.font = sans(700, 28);
+    g.fillText(GRADE[p.grade].short, x, yy + 44);
+  });
+  y += 180 + 220;
+  if (now?.area) {
+    g.fillStyle = '#f3e3c3';
+    g.font = font(700, 42);
+    g.fillText(`${now.year}년, ${now.area.replace(/\(.*\)/, '')}의 해 · ${GRADE[now.grade].short}`, 540, y + 20);
+    g.font = sans(400, 32);
+    g.fillStyle = '#bfae95';
+    wrap(g, now.text, 540, y + 80, 860, 46);
+  }
+  g.fillStyle = '#bfae95';
+  g.font = sans(400, 32);
+  g.fillText(`${ft.emoji} ${ft.name}`, 540, 1200);
   g.fillStyle = '#8c7b64';
-  g.font = font(400, 28);
-  g.fillText('내가 왕이 될 상인가? · 재미로 보는 관상', 540, 1250);
-  await saveCanvas(c, `왕이될상-${v.title}.png`);
+  g.font = sans(400, 26);
+  g.fillText('내가 왕이 될 상인가? · 재미로 보는 관상', 540, 1252);
+  await saveCanvas(c, '나의관상.png');
 });
 
 function wrap(g, text, x, y, maxW, lh) {
@@ -393,6 +502,7 @@ function wrap(g, text, x, y, maxW, lh) {
     } else line += ch;
   }
   g.fillText(line, x, y);
+  return y;
 }
 
 async function saveCanvas(c, filename) {

@@ -19,9 +19,9 @@
       <!-- 1. 첫 화면: 바로 관상 -->
       <section id="step-hero">
         <header class="hero">
-          <p class="eyebrow">觀相 · 사진 한 장 관상</p>
+          <p class="eyebrow">觀相 · 십이궁 · 유년운기</p>
           <h1>내가 <em>왕</em>이 될<br />상인가?</h1>
-          <p class="tag">얼굴에 담긴 왕기(王氣)를 재고,<br />조선시대 나의 자리를 알려드려요.</p>
+          <p class="tag">사진 한 장으로 보는 정통 관상 풀이.<br />타고난 그릇과 올해의 운을 읽어 드려요.</p>
         </header>
 
         <div class="card">
@@ -31,6 +31,10 @@
             <div id="stage-empty" class="stage-empty" aria-hidden="true">👑</div>
           </div>
           <p class="hint">정면, <b>무표정</b>, 앞머리는 넘기고 밝은 곳에서.</p>
+
+          <label class="birth-year">태어난 해 <small>(선택 · 올해 운까지 봐요)</small>
+            <select id="birth-year"><option value="">선택 안 함</option></select>
+          </label>
 
           <div class="consent">
             <label class="check"><input type="checkbox" id="agree-age" /> 만 14세 이상이에요</label>
@@ -48,14 +52,16 @@
 
       <!-- 2. 결과 -->
       <section id="step-result" hidden>
-        <div id="verdict" class="card verdict-card"></div>
+        <div id="summary" class="card summary-card"></div>
+        <div id="yearly" class="card"></div>
 
         <div class="row buttons">
           <button id="btn-card" class="primary">결과 이미지 저장</button>
-          <button id="btn-share">친구에게 물어보기</button>
+          <button id="btn-share">친구에게 공유</button>
         </div>
         <p id="share-status" class="status" role="status"></p>
 
+        <div id="palaces" class="card"></div>
         <div id="features" class="card"></div>
 
         <!-- 무료 1회 더: 관상 × 사주 -->
@@ -75,6 +81,8 @@
           </form>
         </div>
         <div id="saju" class="card" hidden></div>
+
+        <div id="verdict" class="card verdict-card"></div>
 
         <!-- 이후 단계: 유료 예정 -->
         <div id="premium" class="card locked" hidden>

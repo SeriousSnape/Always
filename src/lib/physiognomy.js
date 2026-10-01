@@ -7,6 +7,9 @@ const L = {
   browR: 105, browL: 334, noseBase: 2, noseTip: 1, noseBridge: 168,
   alarR: 129, alarL: 358, mouthR: 61, mouthL: 291, lipTop: 0, lipUpperIn: 13, lipLowerIn: 14, lipBottom: 17,
   jawR: 172, jawL: 397,
+  // 눈썹 안쪽 끝·바깥 끝, 눈썹 아랫선 가운데, 윗눈꺼풀, 이마 양옆(천창 부근)
+  browRIn: 55, browLIn: 285, browROut: 46, browLOut: 276, browRLow: 52, browLLow: 282,
+  lidR: 159, lidL: 386, templeR: 54, templeL: 284,
 };
 
 const PAIRS = [[33, 263], [133, 362], [105, 334], [129, 358], [61, 291], [234, 454], [172, 397]];
@@ -20,6 +23,8 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
  */
 export function computeMetrics(landmarks, width, height) {
   const px = landmarks.map((p) => ({ x: p.x * width, y: p.y * height }));
+  // MediaPipe의 z는 x와 같은 스케일(이미지 가로 기준). 작을수록 카메라에 가깝다
+  const zOf = (i) => (landmarks[i].z ?? 0) * width;
   // 고개 기울기(roll) 보정: 두 눈 바깥점을 수평으로
   const r = px[L.eyeROut];
   const l = px[L.eyeLOut];
@@ -56,8 +61,22 @@ export function computeMetrics(landmarks, width, height) {
     PAIRS.length /
     faceW;
 
+  const browLen = (dist(p[L.browRIn], p[L.browROut]) + dist(p[L.browLIn], p[L.browLOut])) / 2;
+  const browEye = (p[L.lidR].y - p[L.browRLow].y + (p[L.lidL].y - p[L.browLLow].y)) / 2;
+
   return {
     aspect: faceH / faceW,
+    // 인당(미간) 너비: 눈썹 안쪽 끝 사이
+    browGap: dist(p[L.browRIn], p[L.browLIn]) / eyeW,
+    // 눈썹 길이: 눈 길이 대비
+    browLen: browLen / eyeW,
+    // 전택궁: 눈썹과 윗눈꺼풀 사이
+    browEye: browEye / eyeW,
+    foreheadW: dist(p[L.templeR], p[L.templeL]) / faceW,
+    // 산근(콧대 뿌리) 높이: 눈 안쪽 끝보다 얼마나 앞으로 나와 있는가
+    bridgeDepth: ((zOf(L.eyeRIn) + zOf(L.eyeLIn)) / 2 - zOf(L.noseBridge)) / faceW,
+    // 인중 길이
+    philtrum: (p[L.lipTop].y - p[L.noseBase].y) / faceH,
     jaw: dist(p[L.jawR], p[L.jawL]) / faceW,
     upper: upper / faceH,
     middle: middle / faceH,
@@ -107,7 +126,13 @@ export const BASE = {
   noseLength: [0.3, 0.025],
   mouthWidth: [0.32, 0.03],
   lipThickness: [0.29, 0.06],
-  asym: [0.03, 0.012],
+  asym: [0.02, 0.008],
+  browGap: [0.94, 0.12],
+  browLen: [1.56, 0.15],
+  browEye: [0.55, 0.1],
+  foreheadW: [0.82, 0.04],
+  bridgeDepth: [0.1, 0.03],
+  philtrum: [0.075, 0.01],
 };
 
 export const z = (m, k) => {
