@@ -248,3 +248,13 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 24px 1
 .seg button { flex: 1; border: 0; background: transparent; padding: 8px; font-size: 14px; }
 .seg button[aria-selected='true'] { background: var(--card); box-shadow: 0 1px 3px rgb(0 0 0 / 0.12); }
 #chart svg { width: 100%; height: auto; display: block; margin-bottom: 12px; }
+
+/* 관상 궁합 */
+.aff-head { font-size: 15px; margin: 18px 0 8px; }
+.aff-head.good { color: var(--good); }
+.aff-head.bad { color: var(--bad); }
+.aff { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: start; padding: 10px 12px; background: var(--bg); border-radius: 12px; margin-bottom: 8px; }
+.aff-emoji { font-size: 26px; line-height: 1.2; text-align: center; }
+.aff p { margin: 2px 0 0; font-size: 14px; }
+.aff .aff-role { margin: 0; font-size: 12px; font-weight: 700; color: var(--gold); }
+.aff div { min-width: 0; }

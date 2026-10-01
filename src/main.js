@@ -8,6 +8,7 @@ import { toPerson, encodePerson, decodePerson, compatibility } from './lib/compa
 import { josa } from './lib/josa.js';
 import { buildGraph } from './graph.js';
 import { buildFaceChart } from './chart.js';
+import { faceAffinity } from './lib/affinity.js';
 import { detect, loadLandmarker } from './face.js';
 
 const $ = (s) => document.querySelector(s);
@@ -236,6 +237,16 @@ function renderResult() {
 
   renderYearly();
   renderChart();
+
+  const aff = (state.affinity = faceAffinity(v.el));
+  $('#affinity').innerHTML = `
+    <p class="eyebrow">관상 궁합 · 나는 ${ft.emoji} ${ft.name}</p>
+    <h2>가까이하면 좋은 얼굴, 부딪히기 쉬운 얼굴</h2>
+    <p class="hint">얼굴형의 오행이 서로 살리는지(상생) 누르는지(상극)로 봐요. 사람을 가려 사귀라는 뜻이 아니라, 관계에서 내가 조심할 점을 읽는 풀이예요.</p>
+    <h3 class="aff-head good">곁에 두면 좋은 얼굴</h3>
+    ${aff.close.map((a) => `<article class="aff"><span class="aff-emoji" aria-hidden="true">${FACE_TYPES[a.el].emoji}</span><div><p class="aff-role">${a.role}</p><b>${a.title}</b><p>${a.text}</p></div></article>`).join('')}
+    <h3 class="aff-head bad">부딪히기 쉬운 얼굴</h3>
+    ${aff.caution.map((a) => `<article class="aff"><span class="aff-emoji" aria-hidden="true">${FACE_TYPES[a.el].emoji}</span><div><b>${a.title}</b><p>${a.text}</p></div></article>`).join('')}`;
 
   $('#palaces').innerHTML = `
     <h2>십이궁(十二宮) 풀이</h2>
@@ -470,62 +481,77 @@ $('#btn-card').addEventListener('click', async () => {
   const sum = state.summary;
   const ft = FACE_TYPES[state.verdict.el];
   const now = state.flow?.[0];
-  await Promise.all(['900 80px', '700 44px', '400 34px'].map((f) => document.fonts.load(`${f} "Noto Serif KR"`, sum.headline))).catch(() => {});
+  const aff = state.affinity;
+  await Promise.all(['900 64px', '700 40px'].map((f) => document.fonts.load(`${f} "Noto Serif KR"`, sum.headline))).catch(() => {});
+
+  // 9:16 세로 이미지 — 맨 위에 관상도, 아래에 풀이
   const c = document.createElement('canvas');
   c.width = 1080;
-  c.height = 1350;
+  c.height = 1920;
   const g = c.getContext('2d');
-  const font = (w, size) => `${w} ${size}px "Noto Serif KR", "Nanum Myeongjo", serif`;
+  const serif = (w, size) => `${w} ${size}px "Noto Serif KR", "Nanum Myeongjo", serif`;
   const sans = (w, size) => `${w} ${size}px Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
   g.fillStyle = '#1d1712';
   g.fillRect(0, 0, c.width, c.height);
-  g.strokeStyle = '#c9a24a';
-  g.lineWidth = 4;
-  g.strokeRect(48, 48, 984, 1254);
-  g.strokeRect(64, 64, 952, 1222);
+
+  const chart = currentChart();
+  const img = new Image();
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(chart.svg)}`;
+  await img.decode();
+  const ch = 1040;
+  const cw = (chart.width / chart.height) * ch;
+  g.drawImage(img, (c.width - cw) / 2, 40, cw, ch);
+
   g.textAlign = 'center';
+  let y = 40 + ch + 80;
   g.fillStyle = '#c9a24a';
-  g.font = sans(600, 34);
-  g.fillText(state.profile?.name ? `${state.profile.name}님의 관상` : '나의 관상 총평', 540, 160);
+  g.font = sans(600, 30);
+  g.fillText(state.profile?.name ? `${state.profile.name}님의 관상 총평` : '나의 관상 총평', 540, y);
   g.fillStyle = '#f3e3c3';
-  g.font = font(900, 76);
-  let y = wrap(g, sum.headline, 540, 280, 860, 96);
-  g.font = sans(400, 36);
-  g.fillStyle = '#bfae95';
-  y = wrap(g, sum.sub, 540, y + 70, 860, 50);
-  g.fillStyle = '#c9a24a';
-  g.font = sans(700, 38);
-  g.fillText(sum.tags.join('  '), 540, y + 80);
-  // 십이궁 등급
-  const ps = state.palaces;
-  const colW = 860 / 5;
-  ps.forEach((p, i) => {
-    const x = 110 + colW * (i % 5) + colW / 2;
-    const yy = y + 180 + Math.floor(i / 5) * 110;
-    g.fillStyle = '#f3e3c3';
-    g.font = sans(600, 30);
-    g.fillText(p.name, x, yy);
-    g.fillStyle = p.grade === 'good' ? '#e8c060' : p.grade === 'bad' ? '#e0846f' : '#8c7b64';
-    g.font = sans(700, 28);
-    g.fillText(GRADE[p.grade].short, x, yy + 44);
-  });
-  y += 180 + 220;
-  if (now?.area) {
-    g.fillStyle = '#f3e3c3';
-    g.font = font(700, 42);
-    g.fillText(`${now.year}년, ${now.area.replace(/\(.*\)/, '')}의 해 · ${GRADE[now.grade].short}`, 540, y + 20);
-    g.font = sans(400, 32);
-    g.fillStyle = '#bfae95';
-    wrap(g, now.text, 540, y + 80, 860, 46);
-  }
+  g.font = serif(900, 64);
+  y = wrap(g, sum.headline, 540, y + 80, 940, 78);
   g.fillStyle = '#bfae95';
   g.font = sans(400, 32);
-  g.fillText(`${ft.emoji} ${ft.name}`, 540, 1200);
+  y = wrap(g, sum.sub, 540, y + 56, 940, 44);
+  g.fillStyle = '#c9a24a';
+  g.font = sans(700, 32);
+  g.fillText(`${sum.tags.join('  ')}  ·  ${ft.emoji} ${ft.name}`, 540, y + 62);
+  y += 120;
+
+  g.textAlign = 'left';
+  const line = (label, text) => {
+    g.fillStyle = '#c9a24a';
+    g.font = sans(700, 30);
+    g.fillText(label, 90, y);
+    g.fillStyle = '#f3e3c3';
+    g.font = sans(400, 30);
+    g.textAlign = 'left';
+    y = wrapLeft(g, text, 90, y + 46, 900, 42) + 64;
+  };
+  if (now?.area) line(`${now.year}년 · ${now.area.replace(/\(.*\)/, '')}의 해 (${GRADE[now.grade].short})`, now.text);
+  const typeOf = (a) => `${a.title.split(' — ')[0]}(${FACE_TYPES[a.el].shape})`;
+  line('곁에 두면 좋은 얼굴', aff.close.map((a) => `${a.role.split('·')[0]} ${typeOf(a)}`).join(' · '));
+  line('부딪히기 쉬운 얼굴', aff.caution.map(typeOf).join(' · '));
+
+  g.textAlign = 'center';
   g.fillStyle = '#8c7b64';
   g.font = sans(400, 26);
-  g.fillText('내가 왕이 될 상인가? · 재미로 보는 관상', 540, 1252);
+  g.fillText('내가 왕이 될 상인가? · 재미로 보는 관상', 540, 1880);
   await saveCanvas(c, '나의관상.png');
 });
+
+function wrapLeft(g, text, x, y, maxW, lh) {
+  let line = '';
+  for (const ch of text) {
+    if (g.measureText(line + ch).width > maxW) {
+      g.fillText(line, x, y);
+      line = ch;
+      y += lh;
+    } else line += ch;
+  }
+  g.fillText(line, x, y);
+  return y;
+}
 
 function wrap(g, text, x, y, maxW, lh) {
   let line = '';

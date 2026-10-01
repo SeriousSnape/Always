@@ -195,3 +195,15 @@ test('관상도: 측정 비율만으로 SVG 생성, 이상값도 범위 안에�
   const c = buildFaceChart({ metrics: old, mode: 'yearly', palaces: r.readPalaces(old), zones: r.zoneGrades(old), now: null });
   assert.ok(!c.svg.includes('NaN'));
 });
+
+test('관상 궁합: 상생·비화·상극 관계가 오행 순서대로', async () => {
+  const { faceAffinity } = await import('../src/lib/affinity.js');
+  // 목형(0): 수(4)가 생해 주고, 화(1)를 생하며, 토(2)를 극하고, 금(3)에게 극을 받음
+  const a = faceAffinity(0);
+  assert.deepEqual(a.close.map((x) => x.el), [4, 0, 1]);
+  assert.deepEqual(a.caution.map((x) => x.el), [3, 2]);
+  for (let el = 0; el < 5; el++) {
+    const r = faceAffinity(el);
+    assert.equal(new Set([...r.close, ...r.caution].map((x) => x.el)).size, 5);
+  }
+});
