@@ -3,77 +3,90 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>얼굴사주</title>
-    <meta name="description" content="얼굴(관상)에서 시작해 사주, 지금 있는 자리, 친구 관계까지 풀어 주는 재미 풀이" />
+    <title>내가 왕이 될 상인가?</title>
+    <meta name="description" content="사진 한 장으로 보는 관상. 왕기(王氣) 지수와 조선시대 나의 자리를 알려드려요." />
+    <meta property="og:title" content="내가 왕이 될 상인가?" />
+    <meta property="og:description" content="사진 한 장으로 보는 관상 — 나는 왕일까, 영의정일까, 광대일까?" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700;900&display=swap" />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <header class="top">
-      <h1>얼굴사주 <span>觀相 × 四柱</span></h1>
-      <p class="tag">얼굴로 시작해서 사주, 지금 이 자리, 친구 관계까지</p>
-    </header>
-
     <main>
       <div id="invite" class="card invite" hidden></div>
 
-      <!-- 1. 동의 -->
-      <section id="step-consent" class="card">
-        <h2>시작하기 전에</h2>
-        <ul class="facts">
-          <li>📷 사진은 <b>이 기기 안에서만</b> 분석하고, 어디에도 전송하거나 저장하지 않아요.</li>
-          <li>📍 위치도 기기 안에서 방향만 계산하고 전송하지 않아요.</li>
-          <li>🎭 전통 관상·사주 이론을 재미로 풀어낸 결과예요. 과학적 판단이 아니에요.</li>
-        </ul>
-        <label class="check"><input type="checkbox" id="agree-age" /> 만 14세 이상이에요</label>
-        <label class="check"><input type="checkbox" id="agree-face" /> 얼굴 사진을 기기 안에서 분석하는 데 동의해요</label>
-        <button id="btn-start" class="primary" disabled>시작하기</button>
-      </section>
+      <!-- 1. 첫 화면: 바로 관상 -->
+      <section id="step-hero">
+        <header class="hero">
+          <p class="eyebrow">觀相 · 사진 한 장 관상</p>
+          <h1>내가 <em>왕</em>이 될<br />상인가?</h1>
+          <p class="tag">얼굴에 담긴 왕기(王氣)를 재고,<br />조선시대 나의 자리를 알려드려요.</p>
+        </header>
 
-      <!-- 2. 정보 입력 -->
-      <section id="step-profile" class="card" hidden>
-        <h2>1. 나의 정보</h2>
-        <form id="profile-form">
-          <label>닉네임 <input name="name" maxlength="10" required placeholder="예: 민지" /></label>
-          <label>생년월일 (양력) <input name="birth" type="date" required min="1930-01-01" max="2025-12-31" /></label>
-          <div class="row">
-            <label>태어난 시간 <input name="time" type="time" /></label>
-            <label class="check inline"><input type="checkbox" name="noTime" /> 모름</label>
+        <div class="card">
+          <div class="stage">
+            <video id="video" playsinline muted hidden></video>
+            <canvas id="canvas" hidden></canvas>
+            <div id="stage-empty" class="stage-empty" aria-hidden="true">👑</div>
           </div>
-          <label>태어난 곳 <select name="city"></select></label>
-          <button class="primary">다음 — 얼굴 보기</button>
-        </form>
+          <p class="hint">정면, <b>무표정</b>, 앞머리는 넘기고 밝은 곳에서.</p>
+
+          <div class="consent">
+            <label class="check"><input type="checkbox" id="agree-age" /> 만 14세 이상이에요</label>
+            <label class="check"><input type="checkbox" id="agree-face" /> <span>사진을 이 기기 안에서만 분석하는 데 동의해요 <small>(전송·저장 안 함)</small></span></label>
+          </div>
+
+          <div class="row buttons">
+            <button id="btn-camera" class="primary" disabled>카메라로 보기</button>
+            <label class="button disabled" id="label-file">사진 올리기 <input id="file" type="file" accept="image/*" hidden disabled /></label>
+          </div>
+          <button id="btn-shoot" class="primary" hidden>찰칵 (1초 동안 5장 분석)</button>
+          <p id="photo-status" class="status" role="status"></p>
+        </div>
       </section>
 
-      <!-- 3. 사진 -->
-      <section id="step-photo" class="card" hidden>
-        <h2>2. 얼굴 보기</h2>
-        <p class="hint">정면을 보고, <b>무표정으로</b>, 앞머리는 넘기고, 밝은 곳에서 찍어 주세요.</p>
-        <div class="stage">
-          <video id="video" playsinline muted hidden></video>
-          <canvas id="canvas" hidden></canvas>
-          <div id="stage-empty" class="stage-empty">🙂</div>
-        </div>
-        <div class="row buttons">
-          <button id="btn-camera">카메라로 찍기</button>
-          <label class="button">사진 올리기 <input id="file" type="file" accept="image/*" hidden /></label>
-        </div>
-        <button id="btn-shoot" class="primary" hidden>찰칵 (1초 동안 5장 분석)</button>
-        <p id="photo-status" class="status" role="status"></p>
-      </section>
-
-      <!-- 4. 결과 -->
+      <!-- 2. 결과 -->
       <section id="step-result" hidden>
-        <nav class="tabs" role="tablist">
-          <button role="tab" data-tab="face" aria-selected="true">관상</button>
-          <button role="tab" data-tab="saju">사주</button>
-          <button role="tab" data-tab="place">이 자리</button>
-          <button role="tab" data-tab="friends">관계도</button>
-        </nav>
+        <div id="verdict" class="card verdict-card"></div>
 
-        <div data-panel="face" class="card"></div>
-        <div data-panel="saju" class="card" hidden></div>
+        <div class="row buttons">
+          <button id="btn-card" class="primary">결과 이미지 저장</button>
+          <button id="btn-share">친구에게 물어보기</button>
+        </div>
+        <p id="share-status" class="status" role="status"></p>
 
-        <div data-panel="place" class="card" hidden>
+        <div id="features" class="card"></div>
+
+        <!-- 무료 1회 더: 관상 × 사주 -->
+        <div id="saju-unlock" class="card unlock">
+          <p class="eyebrow">무료 풀이 1개 더</p>
+          <h2>이 얼굴, 사주와 맞을까?</h2>
+          <p>얼굴의 기운이 타고난 사주를 돕는지, 누르는지, 빈자리를 채우는지 풀어드려요.</p>
+          <form id="profile-form">
+            <label>닉네임 (선택) <input id="pf-name" name="name" maxlength="10" placeholder="결과 카드에 들어가요" /></label>
+            <label>생년월일 (양력) <input id="pf-birth" name="birth" type="date" required min="1930-01-01" max="2025-12-31" /></label>
+            <div class="row">
+              <label>태어난 시간 <input id="pf-time" name="time" type="time" /></label>
+              <label class="check inline"><input type="checkbox" id="pf-notime" name="noTime" /> 모름</label>
+            </div>
+            <label>태어난 곳 <select id="pf-city" name="city"></select></label>
+            <button class="primary">관상 × 사주 무료로 보기</button>
+          </form>
+        </div>
+        <div id="saju" class="card" hidden></div>
+
+        <!-- 이후 단계: 유료 예정 -->
+        <div id="premium" class="card locked" hidden>
+          <p class="eyebrow">곧 열려요</p>
+          <h2>더 깊은 풀이</h2>
+          <ul class="locked-list">
+            <li><b>🧭 지금 이 자리, 나한테 좋을까?</b><span>내 위치 방위를 사주·관상·오늘 일진과 맞춰 봐요.</span></li>
+            <li><b>🕸️ 친구 관계도</b><span>친구들과의 궁합을 한 장의 관계도로 그려요.</span></li>
+          </ul>
+        </div>
+
+        <div id="place" class="card" hidden>
           <h2>지금 이 자리, 나한테 좋을까?</h2>
           <p class="hint">기준점에서 지금 위치가 어느 방향인지(후천팔괘)를 보고, 사주·관상·오늘 일진과 맞춰 봐요.</p>
           <label>기준점 <select id="origin"></select></label>
@@ -85,7 +98,7 @@
           <div id="place-result"></div>
         </div>
 
-        <div data-panel="friends" class="card" hidden>
+        <div id="friends" class="card" hidden>
           <h2>친구 관계도</h2>
           <p class="hint">링크를 보내면 친구가 자기 얼굴로 직접 풀어보고, 결과 코드만 돌아와요. 생년월일·사진은 공유되지 않아요.</p>
           <div class="row buttons">
@@ -93,14 +106,14 @@
             <button id="btn-graph-png">관계도 이미지 저장</button>
           </div>
           <div id="graph"></div>
-          <p id="edge-detail" class="edge-detail" role="status">선을 누르면 두 사람의 궁합이 보여요.</p>
+          <p id="edge-detail" class="edge-detail" role="status"></p>
           <details>
             <summary>링크 없이 친구 직접 추가 (생년월일만)</summary>
             <p class="hint">본인 동의를 받은 친구만 추가해 주세요.</p>
             <form id="friend-form">
-              <label>이름 <input name="name" maxlength="10" required /></label>
-              <label>생년월일 <input name="birth" type="date" required min="1930-01-01" max="2025-12-31" /></label>
-              <label>시간(선택) <input name="time" type="time" /></label>
+              <label>이름 <input id="ff-name" name="name" maxlength="10" required /></label>
+              <label>생년월일 <input id="ff-birth" name="birth" type="date" required min="1930-01-01" max="2025-12-31" /></label>
+              <label>시간(선택) <input id="ff-time" name="time" type="time" /></label>
               <button>추가</button>
             </form>
           </details>
@@ -108,13 +121,18 @@
         </div>
 
         <div class="row buttons end">
-          <button id="btn-card" class="primary">결과 카드 저장·공유</button>
-          <button id="btn-reset" class="ghost">처음부터</button>
+          <button id="btn-retry" class="ghost">다시 찍기</button>
+          <button id="btn-reset" class="ghost">내 기록 지우기</button>
         </div>
+        <p id="reset-confirm" class="status" hidden>
+          이 기기에 저장된 결과와 친구 목록을 지울까요?
+          <button id="btn-reset-yes" class="small">지우기</button>
+          <button id="btn-reset-no" class="small ghost">취소</button>
+        </p>
       </section>
     </main>
 
-    <footer>모든 계산은 기기 안에서 이루어집니다 · 재미로 보는 풀이</footer>
+    <footer>모든 분석은 기기 안에서 이루어집니다 · 전통 관상을 재미로 풀어낸 결과예요</footer>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

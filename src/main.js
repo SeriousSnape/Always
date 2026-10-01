@@ -1,5 +1,6 @@
 import { computeSaju, ELEMENTS, ELEMENTS_HANJA, ELEMENT_TRAIT, DAY_STEM_TEXT, STEM_ELEMENT, BRANCH_ELEMENT } from './lib/saju.js';
-import { computeMetrics, averageMetrics, poseIssue, faceElement, readFeatures, FACE_TYPES } from './lib/physiognomy.js';
+import { computeMetrics, averageMetrics, poseIssue, readFeatures, FACE_TYPES } from './lib/physiognomy.js';
+import { kingVerdict } from './lib/king.js';
 import { bridgeReading } from './lib/bridge.js';
 import { CITIES, ELEMENT_DIRECTION, evaluateLocation, readExifGps } from './lib/location.js';
 import { toPerson, encodePerson, decodePerson, compatibility } from './lib/compat.js';
@@ -9,6 +10,9 @@ import { detect, loadLandmarker } from './face.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+// 유료 예정 풀이(이 자리·관계도)는 결제가 붙기 전까지 ?all 로만 열어 본다
+const SHOW_ALL = new URLSearchParams(location.search).has('all');
 
 // ── 저장소: 기기 안에만 저장 (사진은 저장하지 않음) ──
 const store = {
@@ -37,19 +41,22 @@ const store = {
 };
 
 const state = {
-  profile: store.get('profile'),
-  face: store.get('face'), // { el, metrics }
+  face: store.get('face'), // { metrics }
+  profile: store.get('profile'), // 사주 단계에서만 입력
   friends: store.get('friends', []),
   home: store.get('home'),
   photoGps: null,
+  verdict: null,
   saju: null,
   invite: null,
+  lastPlace: null,
 };
 
 const show = (id) => {
-  for (const s of ['step-consent', 'step-profile', 'step-photo', 'step-result']) $(`#${s}`).hidden = s !== id;
+  for (const s of ['step-hero', 'step-result']) $(`#${s}`).hidden = s !== id;
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
+const myName = () => state.profile?.name || '나';
 
 // ── 초대 링크 ──
 function readInvite() {
@@ -59,10 +66,10 @@ function readInvite() {
   history.replaceState(null, '', location.pathname + location.search);
   if (!p) return;
   state.invite = p;
+  addFriend(p);
   const box = $('#invite');
   box.hidden = false;
-  box.innerHTML = `<b>${esc(p.name)}</b>님이 관계도에 초대했어요 💌<br><span class="hint">내 얼굴로 풀어보면 ${esc(p.name)}님과의 궁합이 관계도에 그려져요.</span>`;
-  addFriend(p);
+  box.innerHTML = `<b>${esc(p.name)}</b>님이 물어봤어요.<br>“너는 왕이 될 상이야?” 👑`;
 }
 
 function addFriend(p) {
@@ -70,51 +77,25 @@ function addFriend(p) {
   store.set('friends', state.friends);
 }
 
-// ── 1. 동의 ──
+// ── 1. 동의 + 사진 ──
 const syncConsent = () => {
-  $('#btn-start').disabled = !($('#agree-age').checked && $('#agree-face').checked);
+  const ok = $('#agree-age').checked && $('#agree-face').checked;
+  $('#btn-camera').disabled = !ok;
+  $('#file').disabled = !ok;
+  $('#label-file').classList.toggle('disabled', !ok);
+  if (ok) {
+    store.set('consent', true);
+    loadLandmarker().catch(() => {}); // 미리 로딩
+  }
 };
 $('#agree-age').addEventListener('change', syncConsent);
 $('#agree-face').addEventListener('change', syncConsent);
-$('#btn-start').addEventListener('click', () => {
-  store.set('consent', true);
-  show('step-profile');
-  loadLandmarker().catch(() => {}); // 미리 로딩
-});
-
-// ── 2. 정보 입력 ──
-const citySelect = $('#profile-form select[name=city]');
-citySelect.innerHTML = CITIES.map((c, i) => `<option value="${i}">${c.name}</option>`).join('');
-const pf = $('#profile-form');
-pf.noTime.addEventListener('change', () => {
-  pf.time.disabled = pf.noTime.checked;
-});
-if (state.profile) {
-  pf.name.value = state.profile.name;
-  pf.birth.value = state.profile.birth;
-  pf.time.value = state.profile.time ?? '';
-  pf.noTime.checked = !state.profile.time;
-  pf.city.value = state.profile.city;
-}
-pf.addEventListener('submit', (e) => {
-  e.preventDefault();
-  state.profile = {
-    name: pf.name.value.trim(),
-    birth: pf.birth.value,
-    time: pf.noTime.checked || !pf.time.value ? null : pf.time.value,
-    city: Number(pf.city.value),
-  };
-  store.set('profile', state.profile);
-  show('step-photo');
-});
-
-function sajuOf({ birth, time, city = 0 }) {
-  const [year, month, day] = birth.split('-').map(Number);
-  const [hour, minute] = time ? time.split(':').map(Number) : [null, 0];
-  return computeSaju({ year, month, day, hour, minute, longitude: CITIES[city].lon });
+if (store.get('consent')) {
+  $('#agree-age').checked = true;
+  $('#agree-face').checked = true;
+  syncConsent();
 }
 
-// ── 3. 사진 ──
 const video = $('#video');
 const canvas = $('#canvas');
 const ctx = canvas.getContext('2d');
@@ -147,7 +128,7 @@ $('#btn-camera').addEventListener('click', async () => {
 });
 
 $('#btn-shoot').addEventListener('click', async () => {
-  status('분석 중… (1초)');
+  status('왕기를 재는 중… (1초)');
   const frames = [];
   for (let i = 0; i < 5; i++) {
     canvas.width = video.videoWidth;
@@ -165,7 +146,7 @@ $('#file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   stopCamera();
-  status('분석 중…');
+  status('왕기를 재는 중…');
   try {
     state.photoGps = readExifGps(await file.arrayBuffer());
     const img = await createImageBitmap(file, { imageOrientation: 'from-image' });
@@ -192,10 +173,10 @@ function finishAnalysis(frames, w, h) {
     smile: Math.min(...frames.map((f) => f.expression.smile)),
     jawOpen: Math.min(...frames.map((f) => f.expression.jawOpen)),
   };
-  const issue = poseIssue(metrics, expression);
   drawLandmarks(frames.at(-1).landmarks, w, h);
+  const issue = poseIssue(metrics, expression);
   if (issue) return status(issue);
-  state.face = { el: faceElement(metrics), metrics };
+  state.face = { metrics };
   store.set('face', state.face);
   status('');
   renderResult();
@@ -210,50 +191,85 @@ function drawLandmarks(lm, w, h) {
   }
 }
 
-// ── 4. 결과 ──
-document.querySelectorAll('[role=tab]').forEach((tab) =>
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('[role=tab]').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
-    document.querySelectorAll('[data-panel]').forEach((p) => {
-      p.hidden = p.dataset.panel !== tab.dataset.tab;
-    });
-    if (tab.dataset.tab === 'friends') renderGraph();
-  }),
-);
-
+// ── 2. 관상 결과 ──
 const elBadge = (el) => `<span class="el el-${el}">${ELEMENTS[el]}${ELEMENTS_HANJA[el]}</span>`;
 
 function renderResult() {
-  const { profile } = state;
-  const face = (state.face = { ...state.face, el: faceElement(state.face.metrics) });
-  const saju = (state.saju = sajuOf(profile));
-  const ft = FACE_TYPES[face.el];
-  const bridge = bridgeReading(face.el, saju);
+  const v = (state.verdict = kingVerdict(state.face.metrics));
+  const ft = FACE_TYPES[v.el];
+  $('#verdict').innerHTML = `
+    <p class="eyebrow">내가 왕이 될 상인가?</p>
+    <p class="answer">${v.answer}</p>
+    <div class="rank${v.isKing ? ' king' : ''}">
+      <span class="rank-hanja" aria-hidden="true">${v.hanja}</span>
+      <h2 class="rank-title">${v.title}의 상</h2>
+    </div>
+    <div class="meter" role="img" aria-label="왕기 지수 ${v.score}점 (100점 만점, 85점 이상 왕)">
+      <div class="meter-bar"><i style="--w:${v.score}%"></i><b class="meter-king" title="왕"></b></div>
+      <p><span>왕기(王氣) 지수</span><strong>${v.score}</strong></p>
+    </div>
+    <p>${v.text}</p>
+    <p class="face-type">${ft.emoji} 얼굴형은 <b>${ft.name}</b> — ${ft.shape}. ${ft.text}</p>`;
 
-  document.querySelector('[data-panel=face]').innerHTML = `
-    <p class="eyebrow">${esc(profile.name)}님의 얼굴은</p>
-    <h2 class="big">${ft.emoji} ${ft.name}</h2>
-    <p class="hint">${ft.shape}</p>
-    <p>${ft.text}</p>
-    <dl class="reading">${readFeatures(face.metrics).map((r) => `<dt>${r.part}</dt><dd>${r.text}</dd>`).join('')}</dl>
-    <div class="bridge">
-      <p class="eyebrow">관상에서 사주로</p>
-      <h3>${bridge.title}</h3>
-      <p>${bridge.text}</p>
-      ${bridge.notes.map((n) => `<p class="note">✨ ${n}</p>`).join('')}
-      <button class="link" data-goto="saju">사주 자세히 보기 →</button>
-    </div>`;
+  $('#features').innerHTML = `
+    <h2>부위별 관상</h2>
+    <dl class="reading">${readFeatures(state.face.metrics).map((r) => `<dt>${r.part}</dt><dd>${r.text}</dd>`).join('')}</dl>
+    <p class="fine">왕기 지수는 좌우 대칭, 삼정(이마·코·턱) 균형, 콧대, 턱, 눈꼬리를 합산해요.</p>`;
 
+  show('step-result');
+  if (state.profile) renderSaju();
+  else {
+    $('#saju-unlock').hidden = false;
+    $('#saju').hidden = true;
+    for (const id of ['premium', 'place', 'friends']) $(`#${id}`).hidden = true;
+  }
+}
+
+// ── 3. 무료 1회 더: 관상 × 사주 ──
+$('#pf-city').innerHTML = CITIES.map((c, i) => `<option value="${i}">${c.name}</option>`).join('');
+const pf = $('#profile-form');
+$('#pf-notime').addEventListener('change', () => {
+  $('#pf-time').disabled = $('#pf-notime').checked;
+});
+pf.addEventListener('submit', (e) => {
+  e.preventDefault();
+  state.profile = {
+    name: $('#pf-name').value.trim(),
+    birth: $('#pf-birth').value,
+    time: $('#pf-notime').checked || !$('#pf-time').value ? null : $('#pf-time').value,
+    city: Number($('#pf-city').value),
+  };
+  store.set('profile', state.profile);
+  renderSaju();
+  $('#saju').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+function sajuOf({ birth, time, city = 0 }) {
+  const [year, month, day] = birth.split('-').map(Number);
+  const [hour, minute] = time ? time.split(':').map(Number) : [null, 0];
+  return computeSaju({ year, month, day, hour, minute, longitude: CITIES[city].lon });
+}
+
+function renderSaju() {
+  const saju = (state.saju = sajuOf(state.profile));
+  const faceEl = state.verdict.el;
+  const bridge = bridgeReading(faceEl, saju);
   const p = saju.pillars;
   const cols = [['시', p.hour], ['일', p.day], ['월', p.month], ['년', p.year]];
   const max = Math.max(...saju.counts);
   const ds = DAY_STEM_TEXT[p.day.stem];
-  document.querySelector('[data-panel=saju]').innerHTML = `
-    <p class="eyebrow">${esc(profile.name)}님의 사주 · ${saju.animal}띠</p>
-    <table class="pillars"><tr>${cols.map(([k]) => `<th>${k}주</th>`).join('')}</tr>
+  $('#saju-unlock').hidden = true;
+  const box = $('#saju');
+  box.hidden = false;
+  box.innerHTML = `
+    <p class="eyebrow">관상 × 사주 · ${saju.animal}띠</p>
+    <h2>${bridge.title}</h2>
+    <p>${bridge.text}</p>
+    ${bridge.notes.map((n) => `<p class="note">✨ ${n}</p>`).join('')}
+    <div class="table-wrap"><table class="pillars"><tr>${cols.map(([k]) => `<th>${k}주</th>`).join('')}</tr>
       <tr>${cols.map(([, c]) => `<td>${c ? `<span class="el-${STEM_ELEMENT[c.stem]}">${c.hanja[0]}</span><small>${c.name[0]}</small>` : '?'}</td>`).join('')}</tr>
       <tr>${cols.map(([, c]) => `<td>${c ? `<span class="el-${BRANCH_ELEMENT[c.branch]}">${c.hanja[1]}</span><small>${c.name[1]}</small>` : '?'}</td>`).join('')}</tr>
-    </table>
+    </table></div>
     ${saju.hasTime ? '' : '<p class="hint">태어난 시간을 모르면 시주를 빼고 6글자로 풀어요.</p>'}
     <h3>일간 ${elBadge(saju.dayElement)} — ${ds.title}</h3>
     <p>${ds.text}</p>
@@ -263,28 +279,144 @@ function renderResult() {
       .join('')}</div>
     <p>부족한 기운은 ${elBadge(saju.lacking)} (${ELEMENT_TRAIT[saju.lacking]}).
       ${ELEMENT_DIRECTION[saju.lacking]}쪽 방향, ${['초록', '빨강', '노랑·베이지', '흰색·은색', '검정·남색'][saju.lacking]} 계열이 운을 보완해요.</p>
-    ${saju.excess !== null ? `<p>넘치는 기운은 ${elBadge(saju.excess)}. 과하면 ${ELEMENT_TRAIT[saju.excess].split('·')[0]}이 지나칠 수 있어요.</p>` : ''}
-    <p class="fine">절기는 태양 황경으로 계산하고, 시간은 출생지 경도로 보정해요(균시차 미반영). 신강·신약과 부족 오행은 단순화한 계산이에요.</p>`;
+    <p class="fine">절기는 태양 황경으로 계산하고, 시간은 출생지 경도로 보정해요(균시차 미반영). 신강·신약과 부족 오행은 단순화한 계산이에요.</p>
+    <button class="link" id="btn-edit-profile">생년월일 다시 입력</button>`;
+  $('#btn-edit-profile').addEventListener('click', () => {
+    $('#pf-name').value = state.profile.name;
+    $('#pf-birth').value = state.profile.birth;
+    $('#pf-time').value = state.profile.time ?? '';
+    $('#pf-notime').checked = !state.profile.time;
+    $('#pf-time').disabled = !state.profile.time;
+    $('#pf-city').value = String(state.profile.city);
+    $('#saju-unlock').hidden = false;
+    $('#saju-unlock').scrollIntoView({ behavior: 'smooth' });
+  });
 
-  document.querySelectorAll('[data-goto]').forEach((b) =>
-    b.addEventListener('click', () => document.querySelector(`[role=tab][data-tab=${b.dataset.goto}]`).click()),
-  );
-
-  renderOrigins();
-  $('#place-result').innerHTML = '';
-  $('#place-status').textContent = state.photoGps ? '올린 사진에 촬영 위치가 있어요.' : '';
-  renderPhotoPlaceButton();
-  show('step-result');
-  document.querySelector('[role=tab][data-tab=face]').click();
-  if (state.invite && !$('#btn-reply')) {
-    $('#invite').innerHTML += `<br><button class="primary small" id="btn-reply">${esc(state.invite.name)}님에게 내 결과 보내기</button>`;
-    $('#btn-reply').addEventListener('click', shareInvite);
+  $('#premium').hidden = SHOW_ALL;
+  $('#place').hidden = !SHOW_ALL;
+  $('#friends').hidden = !SHOW_ALL;
+  if (SHOW_ALL) {
+    renderOrigins();
+    $('#place-result').innerHTML = '';
+    $('#place-status').textContent = state.photoGps ? '올린 사진에 촬영 위치가 있어요.' : '';
+    renderPhotoPlaceButton();
+    renderGraph();
   }
 }
 
-// ── 위치 ──
+// ── 공유 · 저장 ──
+const shareStatus = (t) => {
+  $('#share-status').textContent = t;
+};
+
+function shareUrl() {
+  const base = `${location.origin}${location.pathname}`;
+  return state.saju ? `${base}#f=${encodePerson(me())}` : base;
+}
+
+async function shareLink(text) {
+  const url = shareUrl();
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: '내가 왕이 될 상인가?', text, url });
+      return;
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return;
+  }
+  try {
+    await navigator.clipboard.writeText(`${text} ${url}`);
+    shareStatus('링크를 복사했어요. 친구에게 붙여 넣어 보내 주세요.');
+  } catch {
+    shareStatus(`이 링크를 복사해 보내 주세요: ${url}`);
+  }
+}
+
+$('#btn-share').addEventListener('click', () => {
+  const v = state.verdict;
+  shareLink(`나는 ${josa(v.title, '이/가')} 될 상이래 (왕기 ${v.score}점) 👑 너는 왕이 될 상이야?`);
+});
+
+$('#btn-card').addEventListener('click', async () => {
+  const v = state.verdict;
+  const ft = FACE_TYPES[v.el];
+  await Promise.all(['900 300px', '700 48px', '400 36px'].map((f) => document.fonts.load(`${f} "Noto Serif KR"`, v.hanja + v.title))).catch(() => {});
+  const c = document.createElement('canvas');
+  c.width = 1080;
+  c.height = 1350;
+  const g = c.getContext('2d');
+  const font = (w, size) => `${w} ${size}px "Noto Serif KR", "Nanum Myeongjo", serif`;
+  g.fillStyle = '#1d1712';
+  g.fillRect(0, 0, c.width, c.height);
+  g.strokeStyle = '#c9a24a';
+  g.lineWidth = 4;
+  g.strokeRect(48, 48, 984, 1254);
+  g.strokeRect(64, 64, 952, 1222);
+  g.textAlign = 'center';
+  g.fillStyle = '#c9a24a';
+  g.font = font(500, 40);
+  g.fillText(state.profile?.name ? `${state.profile.name}님은` : '내가 왕이 될 상인가?', 540, 170);
+  g.fillStyle = '#f3e3c3';
+  g.font = font(500, 44);
+  g.fillText(v.answer, 540, 250);
+  g.fillStyle = v.isKing ? '#e8c060' : '#f3e3c3';
+  g.font = font(900, 300);
+  g.fillText(v.hanja.length > 2 ? v.hanja.slice(0, 2) : v.hanja, 540, 590);
+  g.font = font(800, 92);
+  g.fillText(`${v.title}의 상`, 540, 740);
+  // 왕기 막대
+  g.fillStyle = '#3a2f25';
+  g.fillRect(190, 820, 700, 22);
+  g.fillStyle = '#c9a24a';
+  g.fillRect(190, 820, 7 * v.score, 22);
+  g.fillStyle = '#f3e3c3';
+  g.font = font(700, 48);
+  g.fillText(`왕기(王氣) ${v.score}`, 540, 920);
+  g.font = font(400, 36);
+  wrap(g, v.text, 540, 1010, 860, 54);
+  g.fillStyle = '#bfae95';
+  g.font = font(400, 34);
+  g.fillText(`${ft.emoji} ${ft.name}`, 540, 1180);
+  g.fillStyle = '#8c7b64';
+  g.font = font(400, 28);
+  g.fillText('내가 왕이 될 상인가? · 재미로 보는 관상', 540, 1250);
+  await saveCanvas(c, `왕이될상-${v.title}.png`);
+});
+
+function wrap(g, text, x, y, maxW, lh) {
+  let line = '';
+  for (const ch of text) {
+    if (g.measureText(line + ch).width > maxW) {
+      g.fillText(line, x, y);
+      line = ch;
+      y += lh;
+    } else line += ch;
+  }
+  g.fillText(line, x, y);
+}
+
+async function saveCanvas(c, filename) {
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  const file = new File([blob], filename, { type: 'image/png' });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: '내가 왕이 될 상인가?' });
+      return;
+    }
+  } catch (err) {
+    if (err?.name === 'AbortError') return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ── 유료 예정: 이 자리 ──
 function origins() {
-  const list = [{ ...CITIES[state.profile.city], name: `출생지(${CITIES[state.profile.city].name})` }];
+  const city = CITIES[state.profile.city];
+  const list = [{ ...city, name: `출생지(${city.name})` }];
   if (state.home) list.push({ ...state.home, name: '집' });
   return list;
 }
@@ -335,7 +467,7 @@ $('#btn-home').addEventListener('click', async () => {
 
 function renderPlace(here, label) {
   const origin = origins()[Number($('#origin').value) || 0];
-  const r = evaluateLocation({ origin, here, saju: state.saju, faceEl: state.face.el });
+  const r = evaluateLocation({ origin, here, saju: state.saju, faceEl: state.verdict.el });
   $('#place-status').textContent = '';
   $('#place-result').innerHTML = `
     <div class="verdict v-${r.verdict.label}">
@@ -349,9 +481,9 @@ function renderPlace(here, label) {
   state.lastPlace = r;
 }
 
-// ── 관계도 ──
+// ── 유료 예정: 관계도 ──
 function me() {
-  return toPerson(state.profile.name, state.saju, state.face.el);
+  return toPerson(myName(), state.saju, state.verdict.el);
 }
 
 function renderGraph() {
@@ -386,29 +518,13 @@ function renderGraph() {
 
 $('#friend-form').addEventListener('submit', (e) => {
   e.preventDefault();
-  const f = e.target;
-  const s = sajuOf({ birth: f.birth.value, time: f.time.value || null });
-  addFriend(toPerson(f.name.value.trim(), s, null));
-  f.reset();
+  const s = sajuOf({ birth: $('#ff-birth').value, time: $('#ff-time').value || null });
+  addFriend(toPerson($('#ff-name').value.trim(), s, null));
+  e.target.reset();
   renderGraph();
 });
 
-async function shareInvite() {
-  const url = `${location.origin}${location.pathname}#f=${encodePerson(me())}`;
-  const text = `${state.profile.name}의 얼굴사주 — 나랑 궁합 볼래? 👀`;
-  try {
-    if (navigator.share) return await navigator.share({ title: '얼굴사주', text, url });
-  } catch {
-    return; // 사용자가 취소
-  }
-  try {
-    await navigator.clipboard.writeText(`${text} ${url}`);
-    alert('초대 링크를 복사했어요!');
-  } catch {
-    prompt('이 링크를 복사해 보내 주세요', url);
-  }
-}
-$('#btn-invite').addEventListener('click', shareInvite);
+$('#btn-invite').addEventListener('click', () => shareLink(`${myName()}의 관상·사주 — 나랑 궁합 볼래? 👀`));
 
 $('#btn-graph-png').addEventListener('click', async () => {
   if (!state.friends.length) return;
@@ -419,86 +535,28 @@ $('#btn-graph-png').addEventListener('click', async () => {
   const c = document.createElement('canvas');
   c.width = 1080;
   c.height = 1128;
-  const g = c.getContext('2d');
-  g.drawImage(img, 0, 0, c.width, c.height);
-  await saveCanvas(c, '얼굴사주-관계도.png');
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  await saveCanvas(c, '관계도.png');
 });
 
-// ── 결과 카드 ──
-$('#btn-card').addEventListener('click', async () => {
-  const c = document.createElement('canvas');
-  c.width = 1080;
-  c.height = 1350;
-  const g = c.getContext('2d');
-  const ft = FACE_TYPES[state.face.el];
-  const p = state.saju.pillars;
-  const bridge = bridgeReading(state.face.el, state.saju);
-  g.fillStyle = '#f6efe2';
-  g.fillRect(0, 0, c.width, c.height);
-  g.strokeStyle = '#b8862f';
-  g.lineWidth = 6;
-  g.strokeRect(40, 40, 1000, 1270);
-  g.textAlign = 'center';
-  g.fillStyle = '#6b5a45';
-  g.font = '500 40px sans-serif';
-  g.fillText(`${state.profile.name}님의 얼굴사주`, 540, 150);
-  g.font = '160px sans-serif';
-  g.fillText(ft.emoji, 540, 360);
-  g.fillStyle = '#2b2118';
-  g.font = '800 96px sans-serif';
-  g.fillText(ft.name, 540, 500);
-  g.font = '700 52px sans-serif';
-  g.fillText(`${p.day.hanja}일주 · ${state.saju.animal}띠`, 540, 600);
-  g.fillStyle = '#9b3d2e';
-  g.font = '800 60px sans-serif';
-  g.fillText(`“${bridge.title}”`, 540, 740);
-  g.fillStyle = '#2b2118';
-  g.font = '400 36px sans-serif';
-  wrap(g, bridge.text, 540, 830, 880, 54);
-  if (state.lastPlace) {
-    g.font = '700 44px sans-serif';
-    g.fillText(`오늘 이 자리: ${state.lastPlace.verdict.emoji} ${state.lastPlace.verdict.label}`, 540, 1150);
-  }
-  g.fillStyle = '#9a8f80';
-  g.font = '400 30px sans-serif';
-  g.fillText('얼굴사주 · 재미로 보는 관상×사주', 540, 1260);
-  await saveCanvas(c, '얼굴사주.png');
+// ── 다시 찍기 · 기록 지우기 ──
+$('#btn-retry').addEventListener('click', () => {
+  canvas.hidden = true;
+  $('#stage-empty').hidden = false;
+  status('');
+  show('step-hero');
 });
-
-function wrap(g, text, x, y, maxW, lh) {
-  let line = '';
-  for (const ch of text) {
-    if (g.measureText(line + ch).width > maxW) {
-      g.fillText(line, x, y);
-      line = ch;
-      y += lh;
-    } else line += ch;
-  }
-  g.fillText(line, x, y);
-}
-
-async function saveCanvas(c, filename) {
-  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
-  const file = new File([blob], filename, { type: 'image/png' });
-  try {
-    if (navigator.canShare?.({ files: [file] })) return await navigator.share({ files: [file], title: '얼굴사주' });
-  } catch {
-    return;
-  }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
 $('#btn-reset').addEventListener('click', () => {
-  if (!confirm('이 기기에 저장된 내 정보와 친구 목록을 지울까요?')) return;
+  $('#reset-confirm').hidden = false;
+});
+$('#btn-reset-no').addEventListener('click', () => {
+  $('#reset-confirm').hidden = true;
+});
+$('#btn-reset-yes').addEventListener('click', () => {
   store.clear();
   location.reload();
 });
 
 // ── 시작 ──
 readInvite();
-if (store.get('consent') && state.profile && state.face) renderResult();
-else if (store.get('consent')) show('step-profile');
+if (state.face?.metrics) renderResult();

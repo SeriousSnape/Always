@@ -48,11 +48,15 @@ body {
   line-height: 1.6;
   word-break: keep-all;
 }
-main, .top, footer { max-width: 560px; margin: 0 auto; padding: 0 16px; }
-.top { padding-top: 28px; text-align: center; }
-h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
-h1 span { display: block; font-size: 13px; color: var(--gold); letter-spacing: 0.3em; font-weight: 500; }
-.tag { color: var(--sub); margin: 6px 0 20px; }
+main, footer { max-width: 560px; margin: 0 auto; padding-inline: 16px; }
+main { padding-block: 16px 0; }
+.hero { text-align: center; padding-block: 24px 20px; }
+h1, .rank-title, .answer, .rank-hanja {
+  font-family: 'Noto Serif KR', 'Nanum Myeongjo', 'AppleMyungjo', serif;
+}
+h1 { margin: 8px 0 0; font-size: clamp(36px, 11vw, 52px); line-height: 1.15; font-weight: 900; letter-spacing: -0.03em; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--gold); }
+.tag { color: var(--sub); margin: 12px 0 0; }
 h2 { font-size: 20px; margin: 0 0 12px; }
 h3 { font-size: 17px; margin: 20px 0 6px; }
 .big { font-size: 30px; margin: 0; }
@@ -169,3 +173,36 @@ details { margin-top: 12px; }
 summary { cursor: pointer; font-weight: 700; }
 
 footer { text-align: center; color: var(--sub); font-size: 12px; padding: 24px 16px 40px; }
+
+/* 첫 화면 */
+.consent { display: grid; gap: 4px; margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--bg); }
+.consent label { margin: 0; font-size: 14px; align-items: flex-start; }
+.consent label > span { display: block; }
+.consent small { color: var(--sub); font-weight: 400; white-space: nowrap; }
+.button.disabled { opacity: 0.4; pointer-events: none; }
+.row .button { flex: 1; text-align: center; }
+
+/* 판정 카드 */
+.verdict-card { text-align: center; padding-block: 28px; }
+.answer { font-size: 20px; font-weight: 700; margin: 8px 0 0; }
+.rank { margin: 12px 0 16px; }
+.rank-hanja { display: block; font-size: 88px; line-height: 1.1; font-weight: 900; color: var(--ink); }
+.rank.king .rank-hanja { color: var(--gold); }
+.rank-title { font-size: 30px; margin: 0; font-weight: 800; }
+.meter { max-width: 320px; margin: 0 auto 16px; }
+.meter-bar { position: relative; height: 10px; border-radius: 5px; background: var(--line); }
+.meter-bar i { position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: 5px; background: var(--gold); }
+.meter-king { position: absolute; left: 85%; top: -4px; bottom: -4px; width: 2px; background: var(--accent); }
+.meter p { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 0 0; color: var(--sub); font-size: 14px; }
+.meter strong { font-size: 28px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.face-type { text-align: left; background: var(--bg); padding: 12px; border-radius: 12px; font-size: 15px; }
+.verdict-card > p:not(.eyebrow):not(.answer):not(.face-type) { text-align: left; }
+
+/* 무료 1회 더 · 잠금 */
+.unlock { border: 2px solid var(--gold); }
+.locked { opacity: 0.85; }
+.locked-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.locked-list li { display: grid; gap: 2px; padding: 12px; border-radius: 12px; background: var(--bg); }
+.locked-list span { color: var(--sub); font-size: 14px; }
+.table-wrap { overflow-x: auto; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }

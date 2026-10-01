@@ -9,6 +9,8 @@ const L = {
   jawR: 172, jawL: 397,
 };
 
+const PAIRS = [[33, 263], [133, 362], [105, 334], [129, 358], [61, 291], [234, 454], [172, 397]];
+
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /**
@@ -47,6 +49,12 @@ export function computeMetrics(landmarks, width, height) {
 
   const mouthW = dist(p[L.mouthR], p[L.mouthL]);
   const midX = (p[L.cheekR].x + p[L.cheekL].x) / 2;
+  // 좌우 대칭: 콧대~턱 중심선에서 짝이 되는 점들의 거리 차이
+  const axisX = (p[L.noseBridge].x + p[L.chin].x) / 2;
+  const asym =
+    PAIRS.reduce((sum, [a, b]) => sum + Math.abs(Math.abs(p[a].x - axisX) - Math.abs(p[b].x - axisX)), 0) /
+    PAIRS.length /
+    faceW;
 
   return {
     aspect: faceH / faceW,
@@ -62,6 +70,7 @@ export function computeMetrics(landmarks, width, height) {
     mouthWidth: mouthW / faceW,
     // 입을 벌려도 흔들리지 않도록 윗입술·아랫입술 두께만 더한다
     lipThickness: (p[L.lipUpperIn].y - p[L.lipTop].y + (p[L.lipBottom].y - p[L.lipLowerIn].y)) / mouthW,
+    asym,
     yaw: (p[L.noseTip].x - midX) / faceW,
     roll: (angle * 180) / Math.PI,
   };
@@ -98,9 +107,10 @@ export const BASE = {
   noseLength: [0.3, 0.025],
   mouthWidth: [0.32, 0.03],
   lipThickness: [0.29, 0.06],
+  asym: [0.03, 0.012],
 };
 
-const z = (m, k) => {
+export const z = (m, k) => {
   const [mu, sd] = BASE[k];
   return Math.max(-2.5, Math.min(2.5, (m[k] - mu) / sd));
 };

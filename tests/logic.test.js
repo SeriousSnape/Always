@@ -127,3 +127,27 @@ test('조사 자동 선택', async () => {
   assert.equal(josa('민준', '이/가'), '민준이');
   assert.equal(josa('Tom', '은/는'), 'Tom은(는)');
 });
+
+test('왕기 지수: 평균 얼굴은 60점 전후, 같은 측정값이면 같은 결과, 저장된 옛 데이터(asym 없음)도 동작', async () => {
+  const { kingScore, kingVerdict } = await import('../src/lib/king.js');
+  const m = avg();
+  assert.ok(Math.abs(kingScore(m) - 60) <= 10, String(kingScore(m)));
+  assert.deepEqual(kingVerdict(m), kingVerdict({ ...m }));
+  const { asym, ...old } = m;
+  assert.ok(Number.isFinite(kingScore(old)));
+  assert.ok(kingVerdict({ ...m, asym: 0.005, noseLength: 0.35, jaw: 0.82, eyeTilt: 0.1 }).isKing);
+});
+
+test('왕기 분포: 측정값이 기준 분포를 따르면 왕은 소수(2~15%)', async () => {
+  const { kingVerdict } = await import('../src/lib/king.js');
+  let seed = 7;
+  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const gauss = () => Math.sqrt(-2 * Math.log(rand())) * Math.cos(2 * Math.PI * rand());
+  let kings = 0;
+  const N = 4000;
+  for (let i = 0; i < N; i++) {
+    const m = Object.fromEntries(Object.entries(BASE).map(([k, [mu, sd]]) => [k, mu + sd * gauss()]));
+    if (kingVerdict(m).isKing) kings++;
+  }
+  assert.ok(kings / N > 0.02 && kings / N < 0.15, `왕 비율 ${kings / N}`);
+});
