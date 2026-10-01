@@ -1,15 +1,13 @@
 import { computeSaju, ELEMENTS, ELEMENTS_HANJA, ELEMENT_TRAIT, DAY_STEM_TEXT, STEM_ELEMENT, BRANCH_ELEMENT } from './lib/saju.js';
-import { computeMetrics, averageMetrics, poseIssue, readFeatures, FACE_TYPES } from './lib/physiognomy.js';
-import { kingVerdict } from './lib/king.js';
-import { readPalaces, readThirds, summarize, yearlyFlow, zoneGrades, GRADE, UNREADABLE_PALACES } from './lib/reading.js';
+import { computeMetrics, averageMetrics, poseIssue, faceElement, FACE_TYPES } from './lib/physiognomy.js';
+import { readFace, yearlyFlow, zoneGrades, GRADE, ZONE_RULE } from './lib/reading.js';
 import { bridgeReading } from './lib/bridge.js';
 import { CITIES, ELEMENT_DIRECTION, evaluateLocation, readExifGps } from './lib/location.js';
 import { toPerson, encodePerson, decodePerson, compatibility } from './lib/compat.js';
 import { josa } from './lib/josa.js';
 import { buildGraph } from './graph.js';
 import { buildFaceChart } from './chart.js';
-import { faceAffinity } from './lib/affinity.js';
-import { detect, loadLandmarker } from './face.js';
+import { detect, loadLandmarker, foreheadOf } from './face.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -44,7 +42,8 @@ const store = {
 };
 
 const state = {
-  face: store.get('face'), // { metrics }
+  face: store.get('face'), // { metrics, forehead }
+  gender: store.get('gender'), // 'm' | 'f' | null — 유년운기 男左女右 및 성별에 따라 다른 원문
   profile: store.get('profile'), // 사주 단계에서만 입력
   birthYear: store.get('birthYear'), // 유년운기용 (선택)
   friends: store.get('friends', []),
@@ -73,7 +72,7 @@ function readInvite() {
   addFriend(p);
   const box = $('#invite');
   box.hidden = false;
-  box.innerHTML = `<b>${esc(p.name)}</b>님이 물어봤어요.<br>“너는 왕이 될 상이야?” 👑`;
+  box.innerHTML = `<b>${esc(p.name)}</b>님이 관상을 보고 보냈어요. 나도 봐 볼까요?`;
 }
 
 function addFriend(p) {
@@ -112,11 +111,16 @@ $('#birth-year').addEventListener('change', (e) => setBirthYear(e.target.value))
 function setBirthYear(v) {
   state.birthYear = v ? Number(v) : null;
   store.set('birthYear', state.birthYear);
-  if (state.face?.metrics && !$('#step-result').hidden) {
-    renderYearly();
-    renderChart();
-  }
+  if (state.face?.metrics && !$('#step-result').hidden) renderResult();
 }
+
+// 성별 (선택) — 원전의 男左女右와 성별에 따라 다른 판정에 쓴다
+if (state.gender) $('#gender').value = state.gender;
+$('#gender').addEventListener('change', (e) => {
+  state.gender = e.target.value || null;
+  store.set('gender', state.gender);
+  if (state.face?.metrics && !$('#step-result').hidden) renderResult();
+});
 
 const video = $('#video');
 const canvas = $('#canvas');
@@ -150,7 +154,7 @@ $('#btn-camera').addEventListener('click', async () => {
 });
 
 $('#btn-shoot').addEventListener('click', async () => {
-  status('왕기를 재는 중… (1초)');
+  status('관상을 보는 중… (1초)');
   const frames = [];
   for (let i = 0; i < 5; i++) {
     canvas.width = video.videoWidth;
@@ -161,14 +165,14 @@ $('#btn-shoot').addEventListener('click', async () => {
     await new Promise((res) => setTimeout(res, 200));
   }
   stopCamera();
-  finishAnalysis(frames, canvas.width, canvas.height);
+  await finishAnalysis(frames, canvas.width, canvas.height);
 });
 
 $('#file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
   stopCamera();
-  status('왕기를 재는 중…');
+  status('관상을 보는 중…');
   try {
     state.photoGps = readExifGps(await file.arrayBuffer());
     const img = await createImageBitmap(file, { imageOrientation: 'from-image' });
@@ -177,7 +181,7 @@ $('#file').addEventListener('change', async (e) => {
     canvas.height = Math.round(img.height * scale);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     const r = await detect(canvas);
-    finishAnalysis(r ? [r] : [], canvas.width, canvas.height);
+    await finishAnalysis(r ? [r] : [], canvas.width, canvas.height);
   } catch (err) {
     console.error(err);
     status('사진을 분석하지 못했어요. 다른 사진으로 시도해 주세요.');
@@ -185,7 +189,7 @@ $('#file').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-function finishAnalysis(frames, w, h) {
+async function finishAnalysis(frames, w, h) {
   canvas.hidden = false;
   $('#stage-empty').hidden = true;
   if (!frames.length) return status('얼굴을 찾지 못했어요. 밝은 곳에서 정면으로 다시 찍어 주세요.');
@@ -195,10 +199,15 @@ function finishAnalysis(frames, w, h) {
     smile: Math.min(...frames.map((f) => f.expression.smile)),
     jawOpen: Math.min(...frames.map((f) => f.expression.jawOpen)),
   };
-  drawLandmarks(frames.at(-1).landmarks, w, h);
   const issue = poseIssue(metrics, expression);
-  if (issue) return status(issue);
-  state.face = { metrics };
+  if (issue) {
+    drawLandmarks(frames.at(-1).landmarks, w, h);
+    return status(issue);
+  }
+  // 점을 그리기 전에 머리카락 영역을 본다 (麻衣 p49: 상정은 머리선부터)
+  const forehead = await foreheadOf(canvas, frames.at(-1).landmarks);
+  drawLandmarks(frames.at(-1).landmarks, w, h);
+  state.face = { metrics, forehead };
   store.set('face', state.face);
   status('');
   renderResult();
@@ -213,80 +222,109 @@ function drawLandmarks(lm, w, h) {
   }
 }
 
-// ── 2. 관상 결과 ──
+// ── 2. 관상 결과 (docs/관상-기준.md) ──
 const elBadge = (el) => `<span class="el el-${el}">${ELEMENTS[el]}${ELEMENTS_HANJA[el]}</span>`;
-
 const chip = (grade) => `<span class="chip chip-${GRADE[grade].tone}">${GRADE[grade].short}</span>`;
+const conf = (c) => (c === 'B' ? '<span class="conf" title="깊이 추정값을 써서 참고용이에요">참고</span>' : '');
+const refsHtml = (refs) =>
+  refs.length
+    ? `<ul class="refs">${refs.map((r) => `<li><q lang="zh-Hant">${r.q}</q><cite>${r.s}</cite><span>${r.t}</span></li>`).join('')}</ul>`
+    : '';
+const noteHtml = (n) => (n ? `<p class="fine">${n}</p>` : '');
+const judgeHtml = (j) => `<p class="look">${j.look}</p>${refsHtml(j.refs)}${noteHtml(j.note)}`;
+const subj = (name, domain) => `${name}(${domain})${josa(domain, '이/가').slice(domain.length)}`;
+const opts = () => ({ forehead: state.face.forehead ?? null, gender: state.gender });
 
 function renderResult() {
   const m = state.face.metrics;
-  const v = (state.verdict = kingVerdict(m));
-  const ft = FACE_TYPES[v.el];
-  const palaces = (state.palaces = readPalaces(m));
-  const sum = (state.summary = summarize(palaces));
+  const res = (state.reading = readFace(m, opts()));
+  state.palaces = res.palaces;
+  const sum = res.summary;
+  const fh = state.face.forehead;
+
+  $('#forehead-notice').hidden = fh?.status === 'visible';
+  $('#forehead-notice').innerHTML = `
+    <b>상정(이마)은 명확하지 않아요.</b> ${esc(fh?.reason ?? '이 결과는 이마를 확인하기 전에 저장됐어요')}.
+    원전은 상정을 머리선(髮際)부터 재므로(「髮際至印堂 上停」, 麻衣 p49), 이마를 가리면 상정·삼정 균형·이마 위쪽 운기를 판정하지 않습니다.
+    <button class="link" id="btn-retry-forehead">이마를 드러내고 다시 찍기</button>`;
+  $('#btn-retry-forehead')?.addEventListener('click', retry);
 
   $('#summary').innerHTML = `
-    <p class="eyebrow">나의 관상 총평</p>
-    <h2 class="headline">${sum.headline}</h2>
-    <p class="sub">${sum.sub}</p>
-    <p class="tags">${sum.tags.map((t) => `<span>${t}</span>`).join('')}</p>
-    <p class="face-type">${ft.emoji} <b>${ft.name}</b> · ${ft.shape}<br>${ft.text}</p>
+    <p class="eyebrow">총평 · 達磨相訣 第四法·第五法</p>
+    <h2 class="headline">${sum.best ? `${subj(sum.best.name, sum.best.domain)} 가장 좋은 얼굴` : '크게 기운 자리 없이 고른 얼굴'}</h2>
+    <p class="sub">${sum.worst ? `약한 자리는 ${sum.worst.name}(${sum.worst.domain})` : '흉으로 판정된 궁이 없어요'}</p>
+    <ul class="pillars4">${sum.pillars.map((p) => `<li><b>${p.q}</b><span>${p.name}</span>${chip(p.grade)}</li>`).join('')}</ul>
+    ${sum.best ? `<blockquote><q lang="zh-Hant">${sum.best.refs[0].q}</q> <cite>${sum.best.refs[0].s}</cite><br>${sum.best.refs[0].t}</blockquote>` : ''}
     <ul class="palace-grid" aria-label="십이궁 한눈에 보기">
-      ${palaces.map((p) => `<li><a href="#palace-${p.key}"><span>${p.name}</span><small>${p.domain}</small>${chip(p.grade)}</a></li>`).join('')}
-    </ul>`;
+      ${res.palaces.map((p) => `<li><a href="#palace-${p.key}"><span>${p.name}</span><small>${p.domain}</small>${chip(p.grade)}</a></li>`).join('')}
+    </ul>
+    ${refsHtml(sum.method)}
+    <p class="fine">원전은 얼굴 판단의 절반을 눈, 그중에서도 눈빛(神)에 둡니다. 사진으로는 눈의 형상만 봤고, 신(神)·기색·소리는 보지 않았어요.</p>`;
 
   renderYearly();
   renderChart();
 
-  const aff = (state.affinity = faceAffinity(v.el));
-  $('#affinity').innerHTML = `
-    <p class="eyebrow">관상 궁합 · 나는 ${ft.emoji} ${ft.name}</p>
-    <h2>가까이하면 좋은 얼굴, 부딪히기 쉬운 얼굴</h2>
-    <p class="hint">얼굴형의 오행이 서로 살리는지(상생) 누르는지(상극)로 봐요. 사람을 가려 사귀라는 뜻이 아니라, 관계에서 내가 조심할 점을 읽는 풀이예요.</p>
-    <h3 class="aff-head good">곁에 두면 좋은 얼굴</h3>
-    ${aff.close.map((a) => `<article class="aff"><span class="aff-emoji" aria-hidden="true">${FACE_TYPES[a.el].emoji}</span><div><p class="aff-role">${a.role}</p><b>${a.title}</b><p>${a.text}</p></div></article>`).join('')}
-    <h3 class="aff-head bad">부딪히기 쉬운 얼굴</h3>
-    ${aff.caution.map((a) => `<article class="aff"><span class="aff-emoji" aria-hidden="true">${FACE_TYPES[a.el].emoji}</span><div><b>${a.title}</b><p>${a.text}</p></div></article>`).join('')}`;
+  const t = res.thirds;
+  $('#thirds').innerHTML = `
+    <h2>삼정(三停) ${chip(t.grade)}</h2>
+    <p class="hint">「髮際至印堂 上停 / 山根至準頭 中停 / 人中至地閣 下停」(麻衣 p49). 이마는 초년, 코는 중년, 턱은 말년을 맡아요.</p>
+    ${
+      t.parts
+        ? `<ol class="thirds">${t.parts.map((x) => `<li><b>${x.name}</b><small>${x.ages}</small><span>${x.area}</span><em>${Math.round(x.v * 100)}%</em></li>`).join('')}</ol>`
+        : ''
+    }
+    ${judgeHtml(t)}`;
+
+  $('#wuyue').innerHTML = `
+    <h2>오악(五嶽)</h2>
+    <p class="hint">「五嶽須要相朝揖」(麻衣 p41). 이마·두 광대·코·턱을 다섯 산으로 보고, 솟아서 서로 향해야 좋다고 봐요.</p>
+    ${res.wuyue.map((w) => `<article class="palace"><header><h3>${w.name} <small>${w.area}</small> ${conf(w.conf)}</h3>${chip(w.grade)}</header>${judgeHtml(w)}</article>`).join('')}`;
+
+  $('#wuguan').innerHTML = `
+    <h2>오관(五官)</h2>
+    <p class="hint">${res.wuguanSummary.text} ${refsHtml(res.wuguanSummary.refs)}</p>
+    ${res.wuguan.map((w) => `<article class="palace"><header><h3>${w.name} <small>${w.hanja} · ${w.area}</small></h3>${chip(w.grade)}</header>${judgeHtml(w)}</article>`).join('')}
+    <article class="palace"><header><h3>인중 <small>人中</small></h3>${chip(res.injung.grade)}</header>${judgeHtml(res.injung)}</article>`;
 
   $('#palaces').innerHTML = `
-    <h2>십이궁(十二宮) 풀이</h2>
-    <p class="hint">얼굴의 열두 자리가 각각 인생의 한 분야를 맡는다고 보는 관상의 기본 틀이에요.</p>
-    ${palaces
+    <h2>십이궁(十二宮)</h2>
+    <p class="hint">麻衣 p33~39 「十二宮」과 p165~169 「十二宮剋應訣」, 부모궁은 p39~40 「十二宮秘訣」을 따릅니다.</p>
+    ${res.palaces
       .map(
         (p) => `<article class="palace" id="palace-${p.key}">
-          <header><h3>${p.name} <small>${p.hanja}</small></h3>${chip(p.grade)}</header>
+          <header><h3>${p.name} <small>${p.hanja}</small> ${conf(p.conf)}</h3>${chip(p.grade)}</header>
           <p class="palace-area">${p.area} · ${p.domain}</p>
-          <p>${p.text}</p>
-          ${p.tip ? `<p class="tip">개운법 · ${p.tip}</p>` : ''}
+          ${judgeHtml(p)}
         </article>`,
       )
-      .join('')}
-    <p class="fine">${UNREADABLE_PALACES}</p>`;
+      .join('')}`;
 
-  const thirds = readThirds(m);
-  $('#features').innerHTML = `
-    <h2>삼정(三停)과 오관(五官)</h2>
-    <ol class="thirds">${thirds.map((t) => `<li><b>${t.name}</b><small>${t.ages}</small><span>${t.area}</span>${chip(t.grade)}</li>`).join('')}</ol>
-    <dl class="reading">${readFeatures(m).map((r) => `<dt>${r.part}</dt><dd>${r.text}</dd>`).join('')}</dl>
-    <p class="fine">귀(채청관)는 사진에서 잘 보이지 않아 풀이에서 뺐어요. 풀이는 전통 관상 이론을 얼굴 비율 측정에 맞춰 옮긴 것이고, 과학적 예측이 아니에요.</p>`;
+  $('#relations').innerHTML = `
+    <h2>관계로 보는 자리</h2>
+    <p class="hint">원전은 상대의 얼굴이 아니라 내 얼굴의 해당 자리로 형제·배우자·자녀·아랫사람·부모를 봅니다. 사람을 고르는 법으로는 「擇交在眼 眼惡者情必薄 交之有害」(벗은 눈을 보고 고르라, 麻衣 p146)만 있는데, 눈빛은 사진으로 볼 수 없어 판정하지 않았어요.</p>
+    ${res.relations
+      .map(
+        (r) => `<div class="rel"><h3>${r.who}</h3><ul>${r.items
+          .map(([name, j]) => `<li>${chip(j.grade)} <b>${name}</b> ${j.look}${j.refs[0] ? ` — <q lang="zh-Hant">${j.refs[0].q}</q> <cite>${j.refs[0].s}</cite>` : ''}</li>`)
+          .join('')}</ul></div>`,
+      )
+      .join('')}`;
 
-  $('#verdict').innerHTML = `
-    <p class="eyebrow">덤 · 내가 왕이 될 상인가?</p>
-    <p class="answer">${v.answer}</p>
-    <div class="rank${v.isKing ? ' king' : ''}">
-      <span class="rank-hanja" aria-hidden="true">${v.hanja}</span>
-      <h2 class="rank-title">${v.title}의 상</h2>
-    </div>
-    <div class="meter" role="img" aria-label="왕기 지수 ${v.score}점 (100점 만점, 85점 이상 왕)">
-      <div class="meter-bar"><i style="--w:${v.score}%"></i><b class="meter-king" title="왕"></b></div>
-      <p><span>왕기(王氣) 지수</span><strong>${v.score}</strong></p>
-    </div>
-    <p>${v.text}</p>`;
+  $('#unread').innerHTML = `
+    <h2>사진으로 보지 않은 것</h2>
+    <ul class="unread-list">
+      <li><b>기색(氣色)</b> — 원전도 「最爲難審 須於清明 昧爽精氣不亂之時觀之」(麻衣 p162)라 했어요. 조명·화장에 따라 바뀝니다.</li>
+      <li><b>신(神)·눈빛</b> — 「相主神 … 神主眼」(麻衣 p143~144). 정지 사진으로 판단할 수 없어요.</li>
+      <li><b>소리(聲)</b>, <b>귀</b>, <b>점·주름·흉터</b>, <b>손·발·혀·이</b></li>
+      <li><b>오행형(五行形)</b> — 몸통·체격과 기색까지 함께 봐야 해서(「先定其形 然後隨其色」, 麻衣 p147) 얼굴 사진만으로는 원전대로 정할 수 없어요.</li>
+    </ul>
+    <p class="fine">이 풀이는 『增補麻衣相法全編』(陸位崇 編)과 『相理衡眞』 권3(陳釗 著)의 전통 해석을 옮긴 것이며, 과학적 예측이 아닙니다. 길·흉의 경계는 측정 분포로 정한 추정값이에요.</p>`;
 
   show('step-result');
-  if (state.profile) renderSaju();
+  // 관상 × 사주 연결은 보류 — ?all 에서만
+  $('#saju-unlock').hidden = !SHOW_ALL || !!state.profile;
+  if (state.profile && SHOW_ALL) renderSaju();
   else {
-    $('#saju-unlock').hidden = false;
     $('#saju').hidden = true;
     for (const id of ['premium', 'place', 'friends']) $(`#${id}`).hidden = true;
   }
@@ -296,7 +334,14 @@ function renderResult() {
 let chartMode = 'palace';
 function currentChart() {
   const now = state.birthYear ? { year: THIS_YEAR, age: THIS_YEAR - state.birthYear + 1 } : null;
-  return buildFaceChart({ metrics: state.face.metrics, mode: chartMode, palaces: state.palaces, zones: zoneGrades(state.face.metrics), now });
+  return buildFaceChart({
+    metrics: state.face.metrics,
+    mode: chartMode,
+    palaces: state.palaces,
+    zones: zoneGrades(state.face.metrics, opts()),
+    now,
+    forehead: state.face.forehead,
+  });
 }
 function renderChart() {
   $('#chart').innerHTML = currentChart().svg;
@@ -325,10 +370,11 @@ $('#btn-chart-png').addEventListener('click', async () => {
 function renderYearly() {
   const box = $('#yearly');
   if (!state.birthYear) {
+    state.flow = null;
     box.innerHTML = `
-      <p class="eyebrow">유년운기(流年運氣)</p>
+      <p class="eyebrow">유년운기(流年運氣) · 麻衣 p29~31</p>
       <h2>올해 내 얼굴의 어느 자리가 운을 맡고 있을까?</h2>
-      <p>관상에서는 나이마다 운을 맡는 얼굴 자리가 정해져 있어요. 태어난 해를 고르면 올해와 앞으로 4년의 운을 읽어 드려요.</p>
+      <p>원전은 나이마다 운을 맡는 얼굴 자리를 정해 두었어요(1~14세 귀, 15세 이마, 28세 인당, 41세 산근, 48세 준두, 60세 입, 71세 지각…). 태어난 해를 고르면 올해와 앞으로 4년을 읽어 드려요.</p>
       <label>태어난 해 <select id="yearly-birth"><option value="">선택</option>${yearOptions}</select></label>`;
     $('#yearly-birth').addEventListener('change', (e) => {
       $('#birth-year').value = e.target.value;
@@ -336,26 +382,25 @@ function renderYearly() {
     });
     return;
   }
-  const flow = (state.flow = yearlyFlow(state.face.metrics, state.birthYear));
+  const flow = (state.flow = yearlyFlow(state.face.metrics, state.birthYear, opts()));
   const now = flow[0];
+  const sideNote = now.paired
+    ? `<p class="fine">${state.gender === 'm' ? '남자는 왼쪽' : state.gender === 'f' ? '여자는 오른쪽' : '성별을 고르지 않아 양쪽 평균'}을 봤어요(男左女右, 麻衣 p29).</p>`
+    : '';
   box.innerHTML = `
     <p class="eyebrow">유년운기 · ${now.year}년 · ${now.age}세(세는 나이)</p>
-    ${
-      now.area
-        ? `<h2>올해는 <em>${now.area}</em>의 해</h2>
-           <p class="yearly-theme">${now.range}는 이 자리가 <b>${josa(now.theme, '을/를')}</b> 맡아요. ${chip(now.grade)}</p>
-           <p>${now.text}</p>`
-        : `<p>${now.text}</p>`
-    }
+    <h2>올해는 <em>${now.area}</em>의 해 ${chip(now.grade)}</h2>
+    <p class="hint">${now.range}는 이 자리가 운을 맡아요.</p>
+    ${now.grade === 'unread' ? `<p>${now.look}</p>` : judgeHtml(now)}
+    ${sideNote}
+    ${refsHtml(now.grade === 'good' ? [ZONE_RULE[0]] : now.grade === 'bad' ? [ZONE_RULE[1]] : [])}
     <ol class="flow">${flow
-      .map(
-        (f) => `<li class="flow-${GRADE[f.grade].tone}"><b>${f.year}</b><small>${f.age}세</small><span>${f.area ? f.area.replace(/\(.*\)/, '') : '—'}</span>${chip(f.grade)}</li>`,
-      )
+      .map((f) => `<li class="flow-${GRADE[f.grade].tone}"><b>${f.year}</b><small>${f.age}세</small><span>${f.area.replace(/\(.*\)/, '')}</span>${chip(f.grade)}</li>`)
       .join('')}</ol>
     ${flow
       .slice(1)
-      .filter((f, i) => f.area && f.area !== flow[i].area)
-      .map((f) => `<p class="next"><b>${f.year}년부터 ${f.area}</b> — ${f.text}</p>`)
+      .filter((f, i) => f.area !== flow[i].area)
+      .map((f) => `<p class="next"><b>${f.year}년부터 ${f.area}</b> ${chip(f.grade)} — ${f.look}${f.refs?.[0] ? ` · <q lang="zh-Hant">${f.refs[0].q}</q> <cite>${f.refs[0].s}</cite>` : ''}</p>`)
       .join('')}
     <button class="link" id="btn-change-year">태어난 해 바꾸기</button>`;
   $('#btn-change-year').addEventListener('click', () => {
@@ -391,7 +436,7 @@ function sajuOf({ birth, time, city = 0 }) {
 
 function renderSaju() {
   const saju = (state.saju = sajuOf(state.profile));
-  const faceEl = state.verdict.el;
+  const faceEl = faceElement(state.face.metrics); // 사주 연결 보류 — ?all 전용
   const bridge = bridgeReading(faceEl, saju);
   const p = saju.pillars;
   const cols = [['시', p.hour], ['일', p.day], ['월', p.month], ['년', p.year]];
@@ -472,19 +517,20 @@ async function shareLink(text) {
 }
 
 $('#btn-share').addEventListener('click', () => {
-  const sum = state.summary;
-  const year = state.flow?.[0]?.area ? ` 올해는 ${state.flow[0].area.replace(/\(.*\)/, '')}의 해래.` : '';
-  shareLink(`내 관상은 '${sum.headline}' ${sum.tags.join(' ')}${year} 너도 봐 봐 👀`);
+  const sum = state.reading.summary;
+  const best = sum.best ? `${subj(sum.best.name, sum.best.domain)} 제일 좋대.` : '고른 얼굴이래.';
+  const year = state.flow?.[0] ? ` 올해는 ${state.flow[0].area.replace(/\(.*\)/, '')}의 해래.` : '';
+  shareLink(`마의상법으로 본 내 관상: ${best}${year} 너도 봐 봐 👀`);
 });
 
 $('#btn-card').addEventListener('click', async () => {
-  const sum = state.summary;
-  const ft = FACE_TYPES[state.verdict.el];
+  const res = state.reading;
+  const sum = res.summary;
   const now = state.flow?.[0];
-  const aff = state.affinity;
-  await Promise.all(['900 64px', '700 40px'].map((f) => document.fonts.load(`${f} "Noto Serif KR"`, sum.headline))).catch(() => {});
+  const headline = sum.best ? `${subj(sum.best.name, sum.best.domain)} 가장 좋은 얼굴` : '크게 기운 자리 없이 고른 얼굴';
+  await Promise.all(['900 60px', '700 40px'].map((f) => document.fonts.load(`${f} "Noto Serif KR"`, headline))).catch(() => {});
 
-  // 9:16 세로 이미지 — 맨 위에 관상도, 아래에 풀이
+  // 9:16 세로 이미지 — 맨 위에 관상도, 아래에 원전 풀이
   const c = document.createElement('canvas');
   c.width = 1080;
   c.height = 1920;
@@ -498,25 +544,27 @@ $('#btn-card').addEventListener('click', async () => {
   const img = new Image();
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(chart.svg)}`;
   await img.decode();
-  const ch = 1040;
+  const ch = Math.min(1000, (chart.height / chart.width) * 1000);
   const cw = (chart.width / chart.height) * ch;
   g.drawImage(img, (c.width - cw) / 2, 40, cw, ch);
 
   g.textAlign = 'center';
-  let y = 40 + ch + 80;
+  let y = 40 + ch + 76;
   g.fillStyle = '#c9a24a';
   g.font = sans(600, 30);
-  g.fillText(state.profile?.name ? `${state.profile.name}님의 관상 총평` : '나의 관상 총평', 540, y);
+  g.fillText(state.profile?.name ? `${state.profile.name}님의 관상 총평` : '마의상법으로 본 나의 관상', 540, y);
   g.fillStyle = '#f3e3c3';
-  g.font = serif(900, 64);
-  y = wrap(g, sum.headline, 540, y + 80, 940, 78);
-  g.fillStyle = '#bfae95';
-  g.font = sans(400, 32);
-  y = wrap(g, sum.sub, 540, y + 56, 940, 44);
-  g.fillStyle = '#c9a24a';
-  g.font = sans(700, 32);
-  g.fillText(`${sum.tags.join('  ')}  ·  ${ft.emoji} ${ft.name}`, 540, y + 62);
-  y += 120;
+  g.font = serif(900, 60);
+  y = wrap(g, headline, 540, y + 76, 940, 74);
+  if (sum.best) {
+    g.fillStyle = '#c9a24a';
+    g.font = serif(700, 38);
+    y = wrap(g, `「${sum.best.refs[0].q}」`, 540, y + 64, 940, 50);
+    g.fillStyle = '#bfae95';
+    g.font = sans(400, 28);
+    y = wrap(g, `${sum.best.refs[0].t} (${sum.best.refs[0].s})`, 540, y + 44, 920, 40);
+  }
+  y += 90;
 
   g.textAlign = 'left';
   const line = (label, text) => {
@@ -524,19 +572,17 @@ $('#btn-card').addEventListener('click', async () => {
     g.font = sans(700, 30);
     g.fillText(label, 90, y);
     g.fillStyle = '#f3e3c3';
-    g.font = sans(400, 30);
-    g.textAlign = 'left';
-    y = wrapLeft(g, text, 90, y + 46, 900, 42) + 64;
+    g.font = sans(400, 28);
+    y = wrapLeft(g, text, 90, y + 44, 900, 40) + 56;
   };
-  if (now?.area) line(`${now.year}년 · ${now.area.replace(/\(.*\)/, '')}의 해 (${GRADE[now.grade].short})`, now.text);
-  const typeOf = (a) => `${a.title.split(' — ')[0]}(${FACE_TYPES[a.el].shape})`;
-  line('곁에 두면 좋은 얼굴', aff.close.map((a) => `${a.role.split('·')[0]} ${typeOf(a)}`).join(' · '));
-  line('부딪히기 쉬운 얼굴', aff.caution.map(typeOf).join(' · '));
+  if (now) line(`${now.year}년 · ${now.area.replace(/\(.*\)/, '')}의 해 (${GRADE[now.grade].short})`, now.refs?.[0] ? `${now.look} — 「${now.refs[0].q}」 ${now.refs[0].t}` : now.look);
+  line(`오관 · ${res.wuguanSummary.formed}/4 이루어짐`, res.wuguan.filter((w) => w.grade !== 'unread').map((w) => `${w.name} ${GRADE[w.grade].short}`).join(' · '));
+  if (state.face.forehead?.status !== 'visible') line('상정(이마)', '이마가 드러나지 않아 판정하지 않음');
 
   g.textAlign = 'center';
   g.fillStyle = '#8c7b64';
-  g.font = sans(400, 26);
-  g.fillText('내가 왕이 될 상인가? · 재미로 보는 관상', 540, 1880);
+  g.font = sans(400, 24);
+  g.fillText('『麻衣相法』·『相理衡眞』 기준 · 전통 해석이며 과학적 예측이 아님', 540, 1880);
   await saveCanvas(c, '나의관상.png');
 });
 
@@ -638,7 +684,7 @@ $('#btn-home').addEventListener('click', async () => {
 
 function renderPlace(here, label) {
   const origin = origins()[Number($('#origin').value) || 0];
-  const r = evaluateLocation({ origin, here, saju: state.saju, faceEl: state.verdict.el });
+  const r = evaluateLocation({ origin, here, saju: state.saju, faceEl: faceElement(state.face.metrics) });
   $('#place-status').textContent = '';
   $('#place-result').innerHTML = `
     <div class="verdict v-${r.verdict.label}">
@@ -654,7 +700,7 @@ function renderPlace(here, label) {
 
 // ── 유료 예정: 관계도 ──
 function me() {
-  return toPerson(myName(), state.saju, state.verdict.el);
+  return toPerson(myName(), state.saju, faceElement(state.face.metrics));
 }
 
 function renderGraph() {
@@ -711,12 +757,13 @@ $('#btn-graph-png').addEventListener('click', async () => {
 });
 
 // ── 다시 찍기 · 기록 지우기 ──
-$('#btn-retry').addEventListener('click', () => {
+function retry() {
   canvas.hidden = true;
   $('#stage-empty').hidden = false;
-  status('');
+  status('이마를 드러내고(앞머리를 넘기고) 정면·무표정으로 찍어 주세요.');
   show('step-hero');
-});
+}
+$('#btn-retry').addEventListener('click', retry);
 $('#btn-reset').addEventListener('click', () => {
   $('#reset-confirm').hidden = false;
 });

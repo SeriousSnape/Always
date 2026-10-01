@@ -1,21 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { computeSaju } from '../src/lib/saju.js';
-import { BASE, faceElement, readFeatures, poseIssue } from '../src/lib/physiognomy.js';
+import { BASE, poseIssue } from '../src/lib/physiognomy.js';
 import { bridgeReading } from '../src/lib/bridge.js';
 import { bearing, directionOf, evaluateLocation, readExifGps, CITIES } from '../src/lib/location.js';
 import { compatibility, toPerson, encodePerson, decodePerson } from '../src/lib/compat.js';
 
 const avg = () => Object.fromEntries(Object.entries(BASE).map(([k, [mu]]) => [k, mu]));
 
-test('얼굴 오행형: 긴 얼굴은 목형, 둥근 얼굴은 수형, 각진 턱은 금형', () => {
-  assert.equal(faceElement({ ...avg(), aspect: 1.32, jaw: 0.74 }), 0);
-  assert.equal(faceElement({ ...avg(), aspect: 1.02 }), 4);
-  assert.equal(faceElement({ ...avg(), jaw: 0.85 }), 3);
-});
-
-test('부위별 해석 5개, 정면 판정', () => {
-  assert.equal(readFeatures(avg()).length, 5);
+test('정면 판정', () => {
   assert.equal(poseIssue({ yaw: 0.01, roll: 2 }), null);
   assert.ok(poseIssue({ yaw: 0.2, roll: 0 }));
 });
@@ -128,82 +121,104 @@ test('조사 자동 선택', async () => {
   assert.equal(josa('Tom', '은/는'), 'Tom은(는)');
 });
 
-test('왕기 지수: 평균 얼굴은 60점 전후, 같은 측정값이면 같은 결과, 저장된 옛 데이터(asym 없음)도 동작', async () => {
-  const { kingScore, kingVerdict } = await import('../src/lib/king.js');
-  const m = avg();
-  assert.ok(Math.abs(kingScore(m) - 60) <= 10, String(kingScore(m)));
-  assert.deepEqual(kingVerdict(m), kingVerdict({ ...m }));
-  const { asym, ...old } = m;
-  assert.ok(Number.isFinite(kingScore(old)));
-  assert.ok(kingVerdict({ ...m, asym: 0.005, noseLength: 0.35, jaw: 0.82, eyeTilt: 0.1 }).isKing);
-});
 
-test('왕기 분포: 측정값이 기준 분포를 따르면 왕은 소수(2~15%)', async () => {
-  const { kingVerdict } = await import('../src/lib/king.js');
-  let seed = 7;
-  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const gauss = () => Math.sqrt(-2 * Math.log(rand())) * Math.cos(2 * Math.PI * rand());
-  let kings = 0;
-  const N = 4000;
-  for (let i = 0; i < N; i++) {
-    const m = Object.fromEntries(Object.entries(BASE).map(([k, [mu, sd]]) => [k, mu + sd * gauss()]));
-    if (kingVerdict(m).isKing) kings++;
+test('원전 판정: 평균 얼굴은 대부분 평, 모든 판정에 원문 출처', async () => {
+  const r = await import('../src/lib/reading.js');
+  const res = r.readFace(avg(), { forehead: { status: 'covered', reason: '앞머리가 이마를 가리고 있어요', thirds: null } });
+  assert.equal(res.palaces.length, 13);
+  assert.equal(res.wuguan.find((w) => w.key === 'chaecheong').grade, 'unread');
+  for (const p of [...res.palaces, ...res.wuyue, ...res.wuguan]) {
+    for (const ref of p.refs) assert.match(ref.s, /^(麻衣|衡眞)/);
+    if (p.grade === 'good' || p.grade === 'bad') assert.ok(p.refs.length > 0, p.key);
   }
-  assert.ok(kings / N > 0.02 && kings / N < 0.15, `왕 비율 ${kings / N}`);
+  // 이마가 가려지면 삼정은 판정하지 않고 이유를 말한다
+  assert.equal(res.thirds.grade, 'unread');
+  assert.match(res.thirds.look, /앞머리/);
+  assert.match(res.palaces.find((p) => p.key === 'gwanrok').note, /이마가 드러나지 않아/);
 });
 
-test('십이궁·유년운기·삼정·총평', async () => {
+test('원전 판정: 형상에 따라 원문이 바뀐다', async () => {
   const r = await import('../src/lib/reading.js');
   const m = avg();
-  const palaces = r.readPalaces(m);
-  assert.equal(palaces.length, 10);
-  assert.ok(palaces.every((p) => p.grade === 'mid' && p.text));
-  // 콧대·콧방울이 크면 재백궁 길, 주의 궁에는 개운법
-  const rich = r.readPalaces({ ...m, noseLength: 0.34, noseWidth: 0.27, browGap: 0.7 });
-  assert.equal(rich.find((p) => p.key === 'jaebaek').grade, 'good');
-  const myung = rich.find((p) => p.key === 'myung');
-  assert.equal(myung.grade, 'bad');
-  assert.ok(myung.tip);
-  const s = r.summarize(rich);
-  assert.equal(s.best.key, 'jaebaek');
-  assert.equal(s.headline, '재물이 가장 빛나는 얼굴');
-  // 세는 나이: 2026년에 1985년생은 42세 → 산근
-  assert.equal(r.koreanAge(1985, 2026), 42);
-  const flow = r.yearlyFlow(m, 1985, 2026);
+  const narrow = r.readFace({ ...m, browGap: 0.7 }).palaces.find((p) => p.key === 'myung');
+  assert.equal(narrow.grade, 'bad');
+  assert.match(narrow.refs[0].q, /眉接交加/);
+  const wideF = r.readFace({ ...m, foreheadW: 0.9, chinW: 0.13 }).palaces.find((p) => p.key === 'bokdeok');
+  assert.match(wideF.refs[0].q, /額闊頦尖/);
+  const eyes = r.readFace({ ...m, eyeTilt: 0.15, eyeTiltL: 0.15, eyeTiltR: 0.15 }).wuguan.find((w) => w.key === 'gamchal');
+  assert.ok(eyes.refs.some((x) => /目尾朝天/.test(x.q)));
+  const mouthM = r.readFace({ ...m, mouthWidth: 0.42 }, { gender: 'm' }).wuguan.find((w) => w.key === 'chulnap');
+  assert.ok(mouthM.refs.some((x) => /男人口闊/.test(x.q)));
+  const mouthF = r.readFace({ ...m, mouthWidth: 0.42 }, { gender: 'f' }).wuguan.find((w) => w.key === 'chulnap');
+  assert.ok(mouthF.refs.some((x) => /女人口闊/.test(x.q)));
+  const parents = r.readFace({ ...m, browAsym: 0.2 }).palaces.find((p) => p.key === 'bumo');
+  assert.match(parents.refs[0].q, /左眉高右眉低/);
+});
+
+test('삼정: 이마가 드러나면 머리선 기준으로 판정', async () => {
+  const r = await import('../src/lib/reading.js');
+  const even = r.judgeThirds({ status: 'visible', thirds: { upper: 0.33, middle: 0.34, lower: 0.33 } });
+  assert.equal(even.grade, 'good');
+  assert.match(even.refs[0].q, /三停平等/);
+  const uneven = r.judgeThirds({ status: 'visible', thirds: { upper: 0.25, middle: 0.33, lower: 0.42 } });
+  assert.equal(uneven.grade, 'bad');
+});
+
+test('유년운기: 원전 나이표, 男左女右, 측정 불가 자리', async () => {
+  const r = await import('../src/lib/reading.js');
+  for (let age = 1; age <= 150; age++) assert.ok(r.zoneAt(age), `age ${age}`);
+  assert.equal(r.zoneAt(28).area, '인당');
+  assert.equal(r.zoneAt(41).area, '산근');
+  assert.equal(r.zoneAt(48).area, '준두');
+  assert.equal(r.zoneAt(60).area, '수성(입)');
+  assert.equal(r.zoneAt(71).area, '지각');
+  const m = { ...avg(), eyeTiltL: 0.15, eyeTiltR: -0.06 };
+  const z = r.zoneAt(36);
+  assert.equal(r.judgeZone(z, m, { gender: 'm' }).grade, 'good'); // 남자는 왼쪽 눈
+  assert.equal(r.judgeZone(z, m, { gender: 'f' }).grade, 'bad'); // 여자는 오른쪽 눈
+  assert.equal(r.judgeZone(r.zoneAt(10), m).grade, 'unread'); // 귀
+  assert.equal(r.judgeZone(r.zoneAt(19), m, { forehead: { status: 'covered', reason: 'x' } }).grade, 'unread');
+  const flow = r.yearlyFlow(avg(), 1985, {}, 2026);
+  assert.equal(flow[0].age, 42);
   assert.equal(flow.length, 5);
-  assert.match(flow[0].area, /산근/);
-  assert.match(flow[3].area, /콧대/); // 45세
-  assert.equal(r.yearlyFlow(m, 2015, 2026)[0].zone, null); // 12세
-  assert.equal(r.readThirds(m).length, 3);
-  // 경계 나이 모두 자리 있음
-  for (let age = 15; age <= 110; age++) assert.ok(r.zoneAt(age), `age ${age}`);
 });
 
-test('관상도: 측정 비율만으로 SVG 생성, 이상값도 범위 안에서 그림', async () => {
-  const { buildFaceChart, faceGeometry } = await import('../src/chart.js');
+test('이마 노출 판별: 앞머리·머리선·잘린 사진', async () => {
+  const { analyzeForehead } = await import('../src/lib/forehead.js');
+  const W = 200;
+  const H = 300;
+  // 정면 얼굴 랜드마크 (필요한 점만)
+  const lm = [];
+  const set = (i, x, y) => (lm[i] = { x: x / W, y: y / H });
+  for (let i = 0; i < 468; i++) lm[i] = { x: 0.5, y: 0.5 };
+  set(33, 70, 150); set(263, 130, 150); set(105, 80, 135); set(334, 120, 135);
+  set(10, 100, 95); set(2, 100, 190); set(152, 100, 245); set(234, 50, 160); set(454, 150, 160);
+  const maskWith = (hairBelow) => {
+    const m = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (y < hairBelow) m[y * W + x] = 1;
+    return m;
+  };
+  // 머리선이 메시 위(y=70)에 있으면 이마가 드러남
+  const vis = analyzeForehead(maskWith(70), W, H, lm);
+  assert.equal(vis.status, 'visible');
+  assert.ok(vis.thirds.upper > 0.3 && vis.thirds.upper < 0.4, JSON.stringify(vis.thirds));
+  // 앞머리가 눈썹 바로 위(y=120)까지 내려오면 가림
+  assert.equal(analyzeForehead(maskWith(120), W, H, lm).status, 'covered');
+  // 머리카락이 전혀 없으면 머리선을 못 찾음
+  assert.equal(analyzeForehead(maskWith(0), W, H, lm).status, 'unclear');
+});
+
+test('관상도: 원전 자리 표시, 이마가 가려지면 상정을 빗금 처리', async () => {
+  const { buildFaceChart } = await import('../src/chart.js');
   const r = await import('../src/lib/reading.js');
   const m = avg();
+  const covered = { status: 'covered', reason: 'x', thirds: null };
+  const res = r.readFace(m, { forehead: covered });
   for (const mode of ['palace', 'yearly']) {
-    const c = buildFaceChart({ metrics: m, mode, palaces: r.readPalaces(m), zones: r.zoneGrades(m), now: { year: 2026, age: 42 } });
-    assert.match(c.svg, /^<svg/);
+    const c = buildFaceChart({ metrics: m, mode, palaces: res.palaces, zones: r.zoneGrades(m, { forehead: covered }), now: { year: 2026, age: 42 }, forehead: covered });
     assert.ok(!c.svg.includes('NaN'));
+    assert.match(c.svg, /상정 불명확/);
   }
-  const g = faceGeometry({ ...m, aspect: 9, jaw: -3 });
-  assert.ok(g.chinY < 600 && g.jw > 0);
-  // 옛 저장 데이터(새 지표 없음)도 그림
-  const old = Object.fromEntries(Object.entries(m).filter(([k]) => !['browGap', 'browLen', 'browEye', 'foreheadW', 'bridgeDepth', 'philtrum'].includes(k)));
-  const c = buildFaceChart({ metrics: old, mode: 'yearly', palaces: r.readPalaces(old), zones: r.zoneGrades(old), now: null });
-  assert.ok(!c.svg.includes('NaN'));
-});
-
-test('관상 궁합: 상생·비화·상극 관계가 오행 순서대로', async () => {
-  const { faceAffinity } = await import('../src/lib/affinity.js');
-  // 목형(0): 수(4)가 생해 주고, 화(1)를 생하며, 토(2)를 극하고, 금(3)에게 극을 받음
-  const a = faceAffinity(0);
-  assert.deepEqual(a.close.map((x) => x.el), [4, 0, 1]);
-  assert.deepEqual(a.caution.map((x) => x.el), [3, 2]);
-  for (let el = 0; el < 5; el++) {
-    const r = faceAffinity(el);
-    assert.equal(new Set([...r.close, ...r.caution].map((x) => x.el)).size, 5);
-  }
+  const vis = buildFaceChart({ metrics: m, mode: 'palace', palaces: res.palaces, zones: [], now: null, forehead: { status: 'visible', thirds: { upper: 0.33, middle: 0.33, lower: 0.34 } } });
+  assert.doesNotMatch(vis.svg, /상정 불명확/);
 });

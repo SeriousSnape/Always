@@ -19,9 +19,9 @@
       <!-- 1. 첫 화면: 바로 관상 -->
       <section id="step-hero">
         <header class="hero">
-          <p class="eyebrow">觀相 · 십이궁 · 유년운기</p>
+          <p class="eyebrow">麻衣相法 · 相理衡眞</p>
           <h1>내가 <em>왕</em>이 될<br />상인가?</h1>
-          <p class="tag">사진 한 장으로 보는 정통 관상 풀이.<br />타고난 그릇과 올해의 운을 읽어 드려요.</p>
+          <p class="tag">『마의상법』과 『상리형진』 원문 그대로,<br />십이궁·오관·오악과 올해의 운을 읽어 드려요.</p>
         </header>
 
         <div class="card">
@@ -30,10 +30,14 @@
             <canvas id="canvas" hidden></canvas>
             <div id="stage-empty" class="stage-empty" aria-hidden="true">👑</div>
           </div>
-          <p class="hint">정면, <b>무표정</b>, 앞머리는 넘기고 밝은 곳에서.</p>
+          <p class="hint">정면, <b>무표정</b>, 밝은 곳에서. <b>이마를 드러내야</b>(앞머리를 넘겨야) 상정(초년)까지 정확히 봐요.</p>
 
           <label class="birth-year">태어난 해 <small>(선택 · 올해 운까지 봐요)</small>
             <select id="birth-year"><option value="">선택 안 함</option></select>
+          </label>
+
+          <label class="birth-year">성별 <small>(선택 · 원전의 남좌여우(男左女右)와 성별 판정에 써요)</small>
+            <select id="gender"><option value="">선택 안 함</option><option value="m">남</option><option value="f">여</option></select>
           </label>
 
           <div class="consent">
@@ -52,6 +56,7 @@
 
       <!-- 2. 결과 -->
       <section id="step-result" hidden>
+        <p id="forehead-notice" class="card notice" hidden></p>
         <div id="summary" class="card summary-card"></div>
         <div id="yearly" class="card"></div>
 
@@ -73,12 +78,15 @@
         </div>
         <p id="share-status" class="status" role="status"></p>
 
-        <div id="affinity" class="card"></div>
+        <div id="thirds" class="card"></div>
+        <div id="wuguan" class="card"></div>
+        <div id="wuyue" class="card"></div>
         <div id="palaces" class="card"></div>
-        <div id="features" class="card"></div>
+        <div id="relations" class="card"></div>
+        <div id="unread" class="card"></div>
 
         <!-- 무료 1회 더: 관상 × 사주 -->
-        <div id="saju-unlock" class="card unlock">
+        <div id="saju-unlock" class="card unlock" hidden>
           <p class="eyebrow">무료 풀이 1개 더</p>
           <h2>이 얼굴, 사주와 맞을까?</h2>
           <p>얼굴의 기운이 타고난 사주를 돕는지, 누르는지, 빈자리를 채우는지 풀어드려요.</p>
@@ -94,8 +102,6 @@
           </form>
         </div>
         <div id="saju" class="card" hidden></div>
-
-        <div id="verdict" class="card verdict-card"></div>
 
         <!-- 이후 단계: 유료 예정 -->
         <div id="premium" class="card locked" hidden>
@@ -153,7 +159,7 @@
       </section>
     </main>
 
-    <footer>모든 분석은 기기 안에서 이루어집니다 · 전통 관상을 재미로 풀어낸 결과예요</footer>
+    <footer>모든 분석은 기기 안에서 이루어집니다 · 『麻衣相法』·『相理衡眞』의 전통 해석을 옮긴 것이며 과학적 예측이 아닙니다</footer>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

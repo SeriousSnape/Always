@@ -258,3 +258,25 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 24px 1
 .aff p { margin: 2px 0 0; font-size: 14px; }
 .aff .aff-role { margin: 0; font-size: 12px; font-weight: 700; color: var(--gold); }
 .aff div { min-width: 0; }
+
+/* 원전 인용 */
+.notice { border: 2px solid var(--bad); font-size: 15px; }
+.look { font-weight: 700; margin: 6px 0; }
+.refs { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
+.refs li { display: grid; gap: 2px; padding: 8px 10px; background: var(--bg); border-radius: 10px; border-left: 3px solid var(--gold); min-width: 0; }
+.refs q, .rel q, blockquote q, .next q { font-family: 'Noto Serif KR', 'Nanum Myeongjo', serif; font-weight: 700; quotes: '「' '」'; }
+.refs cite, .rel cite, blockquote cite, .next cite { font-style: normal; font-size: 12px; color: var(--sub); }
+.refs span { font-size: 14px; }
+blockquote { margin: 12px 0; padding: 10px 12px; background: var(--bg); border-radius: 10px; font-size: 14px; }
+.conf { font-size: 11px; font-weight: 700; color: var(--sub); border: 1px dashed var(--sub); border-radius: 6px; padding: 0 5px; vertical-align: middle; }
+.chip-unread { color: var(--sub); border-style: dashed; }
+.pillars4 { list-style: none; padding: 0; margin: 12px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.pillars4 li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; background: var(--bg); border-radius: 10px; font-size: 13px; }
+.pillars4 b { font-family: 'Noto Serif KR', serif; font-size: 20px; color: var(--gold); }
+.thirds li { grid-template-columns: 3.2em 6.5em 1fr auto; }
+.thirds em { font-style: normal; font-variant-numeric: tabular-nums; font-weight: 700; }
+.rel h3 { font-size: 15px; margin: 14px 0 6px; }
+.rel ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.rel li { font-size: 14px; padding: 8px 10px; background: var(--bg); border-radius: 10px; }
+.unread-list { padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+.flow li.flow-unread { opacity: 0.75; }

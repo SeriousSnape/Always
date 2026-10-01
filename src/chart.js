@@ -11,11 +11,12 @@ const COLOR = {
   mid: '#8a7c69',
   bad: '#b8452f',
   seal: '#b8322a',
+  unread: '#c9bda9',
 };
-const GRADE_TEXT = { good: '길', mid: '평', bad: '주의' };
+const GRADE_TEXT = { good: '길', mid: '평', bad: '흉', unread: '—' };
 const FONT = 'font-family="Noto Serif KR, Nanum Myeongjo, AppleMyungjo, serif"';
 const SANS = 'font-family="Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif"';
-const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
+const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩', '⑪', '⑫', '⑬'];
 
 // 측정값을 기준 분포 ±2.5σ 안으로 묶어 그림이 깨지지 않게 한다
 function v(m, k) {
@@ -127,44 +128,69 @@ function drawFace(g) {
   return parts.join('');
 }
 
+// 자리 표시는 麻衣 p7 十二宮分之圖, p6 流年運氣部位圖의 위치를 따른다
 function palaceSpots(g) {
-  const { cx, yHair, browY, eyeY, eW, eyeGap, lidY, noseBaseY, chinY, browIn, browLen, fw, jw, mouthY, tilt } = g;
+  const { cx, yHair, browY, eyeY, eyeH, eW, eyeGap, noseBaseY, chinY, browIn, browLen, fw, tilt } = g;
   const foreY = (k) => yHair + (browY - yHair) * k;
   const both = (dx, y) => [[cx + dx, y], [cx - dx, y]];
   return {
     myung: [[cx, browY + 2]],
-    gwanrok: [[cx, foreY(0.5)]],
-    cheoni: both(fw * 0.36, foreY(0.32)),
-    hyungje: both(browIn + browLen / 2, browY - 4),
-    jeontaek: both(eyeGap / 2 + eW / 2, (browY + lidY) / 2 + 1),
-    cheocheop: both(eyeGap / 2 + eW + 12, eyeY - tilt),
-    jilaek: [[cx, eyeY]],
     jaebaek: [[cx, noseBaseY - 12]],
-    nobok: both(jw / 2 - 16, mouthY + (chinY - mouthY) * 0.35),
-    bokdeok: both(browIn + browLen + 6, browY - 26),
+    hyungje: both(browIn + browLen / 2, browY - 4),
+    jeontaek: both(eyeGap / 2 + eW / 2, eyeY - 1),
+    namnyeo: both(eyeGap / 2 + eW / 2, eyeY + eyeH + 8),
+    nobok: [[cx, chinY - 12]],
+    cheocheop: both(eyeGap / 2 + eW + 13, eyeY - tilt),
+    jilaek: [[cx, eyeY]],
+    cheoni: both(fw * 0.4, foreY(0.55)),
+    gwanrok: [[cx, foreY(0.62)]],
+    bokdeok: both(browIn + browLen + 4, browY - 22),
+    sangmo: [],
+    bumo: both(fw * 0.2, foreY(0.3)),
   };
 }
 
 function zoneSpots(g) {
-  const { cx, W, yHair, browY, eyeY, eW, eyeGap, noseBaseY, lipTopY, chinY, browIn, browLen, fw, mw, mouthY } = g;
+  const { cx, W, yHair, browY, eyeY, eW, eyeGap, eyeH, noseBaseY, lipTopY, chinY, browIn, browLen, fw, jw, nw, mw, mouthY } = g;
   const foreY = (k) => yHair + (browY - yHair) * k;
   const both = (dx, y) => [[cx + dx, y], [cx - dx, y]];
+  const jawY = mouthY + (chinY - mouthY) * 0.25;
   return {
-    15: [[cx, foreY(0.18)]],
-    25: [[cx, foreY(0.62)]],
+    1: both(W / 2 + 12, eyeY + 10),
+    15: [[cx, foreY(0.1)]],
+    16: [[cx, foreY(0.26)]],
+    17: both(fw * 0.22, foreY(0.32)),
+    19: [[cx, foreY(0.42)]],
+    20: both(fw * 0.38, foreY(0.2)),
+    22: [[cx, foreY(0.58)]],
+    23: both(fw * 0.46, foreY(0.42)),
+    25: [[cx, foreY(0.74)]],
+    26: both(browIn + browLen * 0.7, foreY(0.82)),
     28: [[cx, browY + 2]],
-    29: both(fw * 0.38, foreY(0.6)),
+    29: both(fw * 0.46, foreY(0.66)),
     31: both(browIn + browLen / 2, browY - 6),
     35: both(eyeGap / 2 + eW / 2, eyeY),
-    41: [[cx, eyeY]],
+    41: [[cx, eyeY - 2]],
+    42: both(eyeGap / 2 - 4, eyeY + eyeH + 4),
     44: [[cx, (eyeY + noseBaseY) / 2 + 2]],
     46: both(W * 0.3, (eyeY + noseBaseY) / 2 + 14),
-    48: [[cx, noseBaseY - 12]],
+    48: [[cx, noseBaseY - 10]],
+    49: both(nw / 2 + 14, noseBaseY - 8),
     51: [[cx, (noseBaseY + lipTopY) / 2 + 1]],
-    52: both(mw / 2 + 16, lipTopY + 4),
-    60: [[cx, mouthY + 2]],
-    61: [[cx, (mouthY + chinY) / 2 + 10]],
+    52: both(mw / 2 + 2, lipTopY - 6),
+    56: both(mw / 2 + 20, lipTopY + 8),
+    58: both(W / 2 - 4, lipTopY + 4),
+    60: [[cx, mouthY + 1]],
+    61: [[cx, mouthY + (chinY - mouthY) * 0.35]],
+    62: both(mw / 2 - 2, mouthY + (chinY - mouthY) * 0.45),
+    64: both(mw / 2 + 18, mouthY + 6),
+    66: both(jw / 2 - 6, jawY),
+    70: [],
+    71: [[cx, chinY - 10]],
+    72: both(jw / 2 - 26, mouthY + (chinY - mouthY) * 0.7),
+    74: both(jw / 2 + 4, mouthY - 6),
     76: [[cx, chinY + 14]],
+    100: [],
   };
 }
 
@@ -172,30 +198,40 @@ const marker = (x, y, label, color, r = 10) =>
   `<g><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${color}" stroke="${COLOR.paper}" stroke-width="2"/><text x="${x.toFixed(1)}" y="${(y + 0.5).toFixed(1)}" ${SANS} font-size="${r > 10 ? 11 : 11}" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central">${label}</text></g>`;
 
 const pill = (x, y, label, color, highlight) => {
-  const w = label.length * 6.4 + 12;
-  return `<g><rect x="${(x - w / 2).toFixed(1)}" y="${(y - 9).toFixed(1)}" width="${w.toFixed(1)}" height="18" rx="9" fill="${color}" stroke="${highlight ? COLOR.ink : COLOR.paper}" stroke-width="${highlight ? 3 : 1.5}"/><text x="${x.toFixed(1)}" y="${(y + 0.5).toFixed(1)}" ${SANS} font-size="10.5" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central">${label}</text></g>`;
+  const w = label.length * 5.4 + 8;
+  return `<g><rect x="${(x - w / 2).toFixed(1)}" y="${(y - 7).toFixed(1)}" width="${w.toFixed(1)}" height="14" rx="7" fill="${color}" stroke="${highlight ? COLOR.ink : COLOR.paper}" stroke-width="${highlight ? 2.5 : 1}"/><text x="${x.toFixed(1)}" y="${(y + 0.5).toFixed(1)}" ${SANS} font-size="9" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central">${label}</text></g>`;
 };
 
 /**
  * @param {object} p
  * @param {object} p.metrics 측정 비율
  * @param {'palace'|'yearly'} p.mode
- * @param {ReturnType<import('./lib/reading.js').readPalaces>} p.palaces
+ * @param {ReturnType<import('./lib/reading.js').readFace>['palaces']} p.palaces
  * @param {ReturnType<import('./lib/reading.js').zoneGrades>} p.zones
  * @param {{year:number, age:number}|null} p.now 올해 (태어난 해를 고른 경우)
  */
-export function buildFaceChart({ metrics, mode, palaces, zones, now }) {
+export function buildFaceChart({ metrics, mode, palaces, zones, now, forehead = null }) {
   const Wv = 400;
   const g = faceGeometry(metrics);
   const faceBottom = g.chinY + 28;
   const parts = [drawFace(g)];
+  if (forehead && forehead.status !== 'visible') {
+    // 이마가 가려졌거나 머리선을 못 찾았으면 상정 자리를 빗금으로 덮는다
+    const y0 = g.yHair;
+    const y1 = g.browY - 14;
+    parts.push(
+      `<defs><pattern id="hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="0" y2="6" stroke="${COLOR.faint}" stroke-width="2"/></pattern></defs>`,
+      `<rect x="${g.cx - g.fw / 2}" y="${y0}" width="${g.fw}" height="${y1 - y0}" rx="18" fill="url(#hatch)" opacity="0.55"/>`,
+      `<text x="${g.cx}" y="${(y0 + y1) / 2}" ${SANS} font-size="11" font-weight="700" fill="${COLOR.ink}" text-anchor="middle" dominant-baseline="central" paint-order="stroke" stroke="${COLOR.paper}" stroke-width="4">상정 불명확 · 이마를 드러내야 봐요</text>`,
+    );
+  }
   const legend = [];
   const title = mode === 'palace' ? '십이궁도(十二宮圖)' : '유년운기도(流年運氣圖)';
 
   if (mode === 'palace') {
     const spots = palaceSpots(g);
     palaces.forEach((p, i) => {
-      for (const [x, y] of spots[p.key]) parts.push(marker(x, y, i + 1, COLOR[p.grade]));
+      for (const [x, y] of spots[p.key] ?? []) parts.push(marker(x, y, i + 1, COLOR[p.grade]));
       legend.push({ text: `${CIRCLED[i]} ${p.name} · ${p.domain}`, grade: p.grade });
     });
   } else {
@@ -204,7 +240,7 @@ export function buildFaceChart({ metrics, mode, palaces, zones, now }) {
     for (const z of zones) {
       const label = z.from === z.to ? `${z.from}` : z.to > 99 ? `${z.from}+` : `${z.from}-${z.to}`;
       const hl = current === z;
-      for (const [x, y] of spots[z.from]) parts.push(pill(x, y, label, COLOR[z.grade], hl));
+      for (const [x, y] of spots[z.from] ?? []) parts.push(pill(x, y, label, COLOR[z.grade], hl));
     }
     if (current) {
       legend.push({ text: `▣ 올해 ${now.year}년 ${now.age}세 — ${current.area}`, grade: current.grade, strong: true });
@@ -240,7 +276,7 @@ export function buildFaceChart({ metrics, mode, palaces, zones, now }) {
     <text x="${g.cx + g.W / 2 + 22}" y="${(g.yHair + g.browY) / 2}" ${SANS} font-size="10" fill="${COLOR.faint}">상정</text>
     <text x="${g.cx + g.W / 2 + 22}" y="${(g.browY + g.noseBaseY) / 2}" ${SANS} font-size="10" fill="${COLOR.faint}">중정</text>
     <text x="${g.cx + g.W / 2 + 22}" y="${(g.noseBaseY + g.chinY) / 2}" ${SANS} font-size="10" fill="${COLOR.faint}">하정</text>`;
-  const foot = `<text x="${Wv / 2}" y="${Hv - 14}" ${SANS} font-size="10" fill="${COLOR.faint}" text-anchor="middle">길 <tspan fill="${COLOR.good}">●</tspan>  평 <tspan fill="${COLOR.mid}">●</tspan>  주의 <tspan fill="${COLOR.bad}">●</tspan> · 내가 왕이 될 상인가?</text>`;
+  const foot = `<text x="${Wv / 2}" y="${Hv - 14}" ${SANS} font-size="10" fill="${COLOR.faint}" text-anchor="middle">길 <tspan fill="${COLOR.good}">●</tspan>  평 <tspan fill="${COLOR.mid}">●</tspan>  흉 <tspan fill="${COLOR.bad}">●</tspan>  사진으로 보지 않음 <tspan fill="${COLOR.unread}">●</tspan> · 麻衣相法·相理衡眞</text>`;
 
   return {
     width: Wv,

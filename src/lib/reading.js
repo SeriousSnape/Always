@@ -1,203 +1,556 @@
-// 전통 관상 풀이: 십이궁(十二宮), 유년운기(流年運氣, 나이별로 얼굴의 어느 자리가 운을 맡는지), 삼정, 총평.
-// 측정할 수 없는 자리(귀, 와잠, 일각·월각 등)는 풀이에서 빼고 그 사실을 밝힌다.
+// 원전 기반 관상 판정 — docs/관상-기준.md 를 그대로 옮긴 것.
+// 麻衣 = 『增補麻衣相法全編』, 衡眞 = 『相理衡眞』 권3. 쪽수는 스캔 PDF 쪽.
+// 판정마다 원문(q)·출처(s)·현대어 풀이(t)를 붙이고, 원전에 없는 말은 하지 않는다.
 import { z } from './physiognomy.js';
-import { josa } from './josa.js';
 
-const zz = (m, k) => (m[k] === undefined ? 0 : z(m, k));
-const mix = (...v) => v.reduce((a, b) => a + b, 0) / Math.sqrt(v.length);
+const zz = (m, k) => (m[k] === undefined || m[k] === null ? 0 : z(m, k));
+const mix = (...v) => v.reduce((a, b) => a + b, 0) / v.length;
+const T = 0.6; // 길·흉 경계(표준편차 단위) — 실제 분포로 보정 필요
+const sideKey = (k, side) => (side ? `${k}${side}` : k);
 
 export const GRADE = {
   good: { label: '길(吉)', short: '길', tone: 'good' },
   mid: { label: '평(平)', short: '평', tone: 'mid' },
-  bad: { label: '주의', short: '주의', tone: 'bad' },
+  bad: { label: '흉(凶)', short: '흉', tone: 'bad' },
+  unread: { label: '보지 않음', short: '—', tone: 'unread' },
 };
-const gradeOf = (s) => (s > 0.6 ? 'good' : s < -0.6 ? 'bad' : 'mid');
 
-const PALACES = [
-  {
-    key: 'myung', name: '명궁', hanja: '命宮', area: '인당(미간)', domain: '운의 흐름', tag: '#운이_트이는_상',
-    score: (m) => zz(m, 'browGap'),
-    good: '인당이 시원하게 열려 있습니다. 마음이 넓고 막힌 일이 잘 풀리는 상으로, 스스로 길을 열어 가는 힘이 큽니다.',
-    mid: '인당 너비가 알맞아 판단이 균형 잡혀 있습니다. 감정에 휩쓸리지 않고 꾸준히 운을 쌓는 타입입니다.',
-    bad: '인당이 좁은 편이라 생각이 깊고 예민합니다. 걱정을 오래 품으면 운이 막히기 쉬우니, 결정은 빠르게 내리고 털어내는 연습이 필요합니다.',
-    tip: '미간을 찌푸리는 습관을 줄이고 눈썹 사이를 깔끔하게 정리하면 인당이 밝아집니다.',
-  },
-  {
-    key: 'gwanrok', name: '관록궁', hanja: '官祿宮', area: '이마 가운데', domain: '직업과 명예', tag: '#명예운',
-    score: (m) => zz(m, 'upper'),
-    good: '이마가 높고 넓어 관록궁이 좋습니다. 조직에서 인정받고 이름을 얻는 운이 있으며, 윗사람의 도움을 받습니다.',
-    mid: '이마가 고른 편이라 직업운이 안정적입니다. 실력을 차곡차곡 쌓아 자리를 만드는 타입입니다.',
-    bad: '이마가 낮은 편이라 젊을 때는 윗사람 덕보다 자기 힘으로 일어섭니다. 대신 30대 이후 실력으로 자리를 굳힙니다.',
-    tip: '이마를 가리지 않는 머리 모양이 관록궁을 살립니다.',
-  },
-  {
-    key: 'cheoni', name: '천이궁', hanja: '遷移宮', area: '이마 양옆', domain: '이동과 변화', tag: '#해외·이동운',
-    score: (m) => zz(m, 'foreheadW'),
-    good: '이마 양옆이 넓게 트여 이동과 변화에서 운이 열립니다. 이직, 이사, 해외에서 기회를 잡는 상입니다.',
-    mid: '천이궁이 평탄해 변화가 와도 크게 흔들리지 않습니다. 움직일 때와 머물 때를 잘 가립니다.',
-    bad: '이마 양옆이 좁은 편이라 익숙한 곳에서 힘을 발휘합니다. 큰 이동은 충분히 준비한 뒤에 하는 것이 좋습니다.',
-    tip: '먼 길을 떠나기 전엔 일정을 한 번 더 점검하세요. 천이궁이 약하면 준비가 곧 운입니다.',
-  },
-  {
-    key: 'hyungje', name: '형제궁', hanja: '兄弟宮', area: '눈썹', domain: '친구와 동료', tag: '#인복',
-    score: (m) => zz(m, 'browLen'),
-    good: '눈썹이 눈보다 길게 뻗어 형제궁이 좋습니다. 친구와 동료의 도움이 많고, 사람을 통해 기회를 얻습니다.',
-    mid: '눈썹 길이가 알맞아 인간관계가 고르게 이어집니다. 주고받는 균형이 좋은 사람입니다.',
-    bad: '눈썹이 짧은 편이라 넓은 인맥보다 소수의 깊은 관계에 강합니다. 혼자 해내는 힘이 있지만, 도움을 청하는 것도 운입니다.',
-    tip: '눈썹 꼬리를 자연스럽게 길게 정리하면 형제궁이 보완됩니다.',
-  },
-  {
-    key: 'jeontaek', name: '전택궁', hanja: '田宅宮', area: '눈썹과 눈 사이', domain: '집과 재산', tag: '#부동산운',
-    score: (m) => zz(m, 'browEye'),
-    good: '눈썹과 눈 사이가 넉넉해 전택궁이 넓습니다. 집과 땅의 복이 있고 가정이 안정됩니다.',
-    mid: '전택궁이 고른 편이라 주거와 재산이 차근차근 쌓입니다.',
-    bad: '눈썹과 눈 사이가 가까운 편이라 성격이 급하고 추진력이 강합니다. 집과 재산 문제는 서두르지 말고 오래 지켜볼수록 좋습니다.',
-    tip: '큰 계약은 한 박자 늦게 하세요. 전택궁이 좁은 사람에게는 기다림이 이익입니다.',
-  },
-  {
-    key: 'cheocheop', name: '처첩궁', hanja: '妻妾宮', area: '눈꼬리', domain: '연애와 결혼', tag: '#연애운',
-    score: (m) => zz(m, 'eyeTilt'),
-    good: '눈꼬리가 살짝 올라가 처첩궁에 생기가 있습니다. 매력이 분명하고 연애에서 주도권을 잡는 상입니다.',
-    mid: '눈꼬리가 수평에 가까워 연애와 결혼에서 균형 잡힌 관계를 만듭니다.',
-    bad: '눈꼬리가 내려간 편이라 다정하고 헌신적입니다. 상대에게 맞추다 지치지 않도록 내 마음도 챙겨야 합니다.',
-    tip: '관계에서 원하는 것을 먼저 말로 꺼내 보세요. 처첩궁이 순한 사람은 표현이 곧 개운입니다.',
-  },
-  {
-    key: 'jilaek', name: '질액궁', hanja: '疾厄宮', area: '산근(콧대 뿌리)', domain: '건강', tag: '#건강운',
-    score: (m) => zz(m, 'bridgeDepth'),
-    good: '콧대 뿌리(산근)가 높고 반듯해 질액궁이 튼튼합니다. 체력과 회복력이 좋고 고비를 잘 넘깁니다.',
-    mid: '산근이 고른 편이라 건강운이 무난합니다. 생활 리듬만 지키면 큰 탈이 없습니다.',
-    bad: '산근이 낮은 편이라 무리하면 쉽게 지칩니다. 특히 41~43세 무렵은 건강과 일의 고비를 미리 대비하는 것이 좋습니다.',
-    tip: '수면과 소화를 먼저 챙기세요. 질액궁은 생활 습관으로 가장 많이 바뀌는 자리입니다.',
-  },
-  {
-    key: 'jaebaek', name: '재백궁', hanja: '財帛宮', area: '코', domain: '재물', tag: '#재물운',
-    score: (m) => mix(zz(m, 'noseLength'), zz(m, 'noseWidth')),
-    good: '콧대가 곧고 콧방울이 두툼해 재백궁이 좋습니다. 돈을 버는 힘과 모으는 힘을 함께 갖춘 상입니다.',
-    mid: '코가 균형 잡혀 버는 만큼 모이는 재물운입니다. 꾸준한 저축이 큰 재산이 됩니다.',
-    bad: '코가 작고 단정한 편이라 큰돈보다 알뜰한 관리에 강합니다. 충동 지출만 막으면 재물이 새지 않습니다.',
-    tip: '쓰는 통장과 모으는 통장을 나누세요. 재백궁이 약한 사람은 구조가 재물을 지킵니다.',
-  },
-  {
-    key: 'nobok', name: '노복궁', hanja: '奴僕宮', area: '턱 양옆', domain: '후배와 말년 인덕', tag: '#리더십',
-    score: (m) => zz(m, 'jaw'),
-    good: '턱 양옆이 넉넉해 노복궁이 좋습니다. 따르는 사람이 많고 나이 들수록 인덕이 쌓입니다.',
-    mid: '턱선이 고른 편이라 아랫사람과의 관계가 원만합니다.',
-    bad: '턱이 갸름한 편이라 사람을 이끌기보다 함께 일하는 데 강합니다. 믿을 만한 한두 사람을 오래 곁에 두세요.',
-    tip: '후배에게 먼저 밥을 사세요. 노복궁은 베푼 만큼 돌아오는 자리입니다.',
-  },
-  {
-    key: 'bokdeok', name: '복덕궁', hanja: '福德宮', area: '이마 양옆과 턱', domain: '타고난 복', tag: '#복이_많은_상',
-    score: (m) => mix(zz(m, 'foreheadW'), zz(m, 'jaw'), -zz(m, 'asym')),
-    good: '이마와 턱이 서로 받쳐 주고 얼굴이 고르게 균형 잡혀 복덕궁이 좋습니다. 큰 걱정 없이 복을 누리는 상입니다.',
-    mid: '복덕궁이 고른 편이라 노력한 만큼 복이 따라옵니다.',
-    bad: '복덕궁이 약한 편이라 스스로 복을 만들어 가는 사람입니다. 베풀수록 돌아오는 상이니 작은 선행이 개운이 됩니다.',
-    tip: '감사한 일을 하루 하나씩 적어 보세요. 복덕궁은 마음의 여유가 얼굴로 드러나는 자리입니다.',
-  },
-];
+const R = (q, s, t) => ({ q, s, t });
+const out = (grade, look, refs = [], note = null) => ({ grade, look, refs, note });
+const unread = (why) => out('unread', why);
 
-export const UNREADABLE_PALACES = '남녀궁(자녀·눈 밑 와잠)과 부모궁(이마 위 일각·월각)은 사진으로 판별하기 어려워 풀이에서 뺐습니다.';
+// ── 판정 항목 ──
+// judge(m, ctx) → { grade, look(측정 결과), refs[원문], note }
+// ctx = { side: 'L'|'R'|null, forehead: {status, thirds}, gender: 'm'|'f'|null }
 
-export function readPalaces(m) {
-  return PALACES.map((p) => {
-    const score = p.score(m);
-    const grade = gradeOf(score);
-    return { key: p.key, name: p.name, hanja: p.hanja, area: p.area, domain: p.domain, tag: p.tag, score, grade, text: p[grade], tip: grade === 'bad' ? p.tip : null };
-  });
-}
+const J = {
+  // 십이궁
+  myung(m) {
+    const s = zz(m, 'browGap');
+    if (s > T) return out('good', '인당(두 눈썹 사이)이 넓게 트였다', [
+      R('印堂平正 命宮牢', '麻衣 p165', '인당이 평평하고 반듯하면 명궁이 단단하다.'),
+      R('印堂 方寸平而靜 … 祿二千石', '衡眞 p13', '인당 한 치가 평평하고 고요하면 이천 석의 녹을 받는다.'),
+    ]);
+    if (s < -T) return out('bad', '두 눈썹 사이가 좁다', [
+      R('眉接交加 貧賤', '麻衣 p33', '눈썹이 맞닿아 엇갈리면 가난하고 천하다.'),
+      R('印堂低陷 兩眉傍 終須貧賤走忙忙', '麻衣 p165', '인당이 낮고 두 눈썹이 다가붙으면 끝내 빈천하여 바삐 떠돈다.'),
+    ]);
+    return out('mid', '인당 너비가 보통이다');
+  },
+  jaebaek(m) {
+    const s = mix(zz(m, 'noseLength'), zz(m, 'noseWidth'));
+    if (s > T) return out('good', '콧대가 길고 콧방울이 두툼하다', [
+      R('聳直豐隆 一生財旺', '麻衣 p33', '코가 솟고 곧으며 풍성하면 평생 재물이 왕성하다.'),
+      R('準頭最要豐厚 司財帛', '衡眞 p25', '준두는 풍후함이 가장 중요하니 재물을 맡는다.'),
+    ]);
+    if (s < -T) return out('bad', '코가 짧고 콧방울이 좁다', [
+      R('尖峰 破財貧寒', '麻衣 p33', '코가 뾰족한 봉우리 같으면 재물을 깨뜨리고 가난하다.'),
+      R('準頭 … 尖薄 多詐', '衡眞 p21', '준두가 뾰족하고 얇으면 속임이 많다.'),
+    ]);
+    return out('mid', '코의 길이와 콧방울이 보통이다');
+  },
+  hyungje(m, { side }) {
+    const over = m[sideKey('browOver', side)] ?? m.browOver;
+    const eye = zz(m, sideKey('browEye', side));
+    if (eye < -1.2) return out('bad', '눈썹이 눈을 누르듯 낮게 붙었다', [
+      R('眉環塞眼 兄弟疏', '麻衣 p34', '눈썹이 눈을 둘러 막으면 형제가 소원하다.'),
+    ]);
+    if (over < 0.1) return out('bad', '눈썹이 눈보다 짧다', [
+      R('眉短於目 心性孤獨', '麻衣 論眉 p69~76', '눈썹이 눈보다 짧으면 마음이 외롭다.'),
+    ]);
+    if (zz(m, sideKey('browOver', side)) > T) return out('good', '눈썹 끝이 눈꼬리보다 길게 뻗었다', [
+      R('眉長過目 三四兄弟無刑', '麻衣 p34', '눈썹이 눈보다 길면 형제 서넛이 서로 해치지 않는다.'),
+    ]);
+    return out('mid', '눈썹 길이가 보통이다');
+  },
+  jeontaek(m) {
+    if (zz(m, 'eyeAspect') > T && zz(m, 'browEye') > 0) return out('good', '눈이 가늘고 길며 눈썹이 높다', [
+      R('鳳目高眉 稅置三州', '麻衣 p35', '봉황 눈에 눈썹이 높으면 세 고을에 땅을 둔다.'),
+    ]);
+    return out('mid', '전택궁(두 눈)은 원전의 길한 형상(鳳目高眉)에 들지 않는다', [], '원전의 전택궁 흉 판정(赤脈侵睛 등)은 눈의 핏발과 빛깔이라 사진으로 보지 않는다.');
+  },
+  namnyeo(m) {
+    const s = zz(m, 'tearFull');
+    if (s > T) return out('good', '눈 밑(누당·와잠)이 평평하게 차 있다', [
+      R('三陽平滿 兒孫福祿', '麻衣 p35', '눈 밑 삼양이 평평하고 가득하면 자손이 복록을 누린다.'),
+    ]);
+    if (s < -T) return out('bad', '눈 밑이 꺼져 있다', [
+      R('深陷 … 無緣', '麻衣 p35', '눈 밑이 깊이 꺼지면 자식과 인연이 없다.'),
+    ]);
+    return out('mid', '눈 밑이 보통이다');
+  },
+  nobok(m) {
+    const s = zz(m, 'chinW');
+    if (s > T) return out('good', '턱 끝이 둥글고 넉넉하다', [
+      R('頦圓豐滿 侍立成群', '麻衣 p36', '턱이 둥글고 풍만하면 모시는 사람이 무리를 이룬다.'),
+    ]);
+    if (s < -T) return out('bad', '턱 끝이 뾰족하다', [
+      R('地閣尖斜 受恩深而反成怨', '麻衣 p36', '지각이 뾰족하고 기울면 은혜를 깊이 입고도 도리어 원망을 산다.'),
+    ]);
+    return out('mid', '턱 끝 너비가 보통이다');
+  },
+  cheocheop(m) {
+    const s = zz(m, 'jianmenFull');
+    if (s > T) return out('good', '눈꼬리 옆(어미·간문)이 평평하게 차 있다', [
+      R('豐隆平滿 娶妻財帛盈箱', '麻衣 p36', '풍성하고 평평하게 차면 아내를 얻어 재물이 상자에 가득하다.'),
+      R('奸門 光澤有肉 主妻賢', '衡眞 p15', '간문에 살이 있으면 아내가 어질다.'),
+    ]);
+    if (s < -T) return out('bad', '눈꼬리 옆이 꺼져 있다', [
+      R('奸門深陷 常作新郎', '麻衣 p36', '간문이 깊이 꺼지면 늘 새 신랑이 된다(혼인을 여러 번 한다).'),
+    ]);
+    return out('mid', '눈꼬리 옆이 보통이다');
+  },
+  jilaek(m) {
+    const s = zz(m, 'bridgeDepth');
+    if (s > T) return out('good', '산근(콧대 뿌리)이 높이 솟았다', [
+      R('隆而豐滿 福祿無窮', '麻衣 p37', '산근이 솟고 풍만하면 복록이 끝이 없다.'),
+      R('山根連鼻梁 豐隆而起 與額平 位至三公', '衡眞 p14', '산근이 콧대와 이어져 풍성하게 솟아 이마와 평평하면 삼공의 자리에 오른다.'),
+    ]);
+    if (s < -T) return out('bad', '산근이 낮다', [
+      R('紋痕低陷 連年宿疾', '麻衣 p37', '산근에 흉터가 있고 낮게 꺼지면 해마다 묵은 병이 있다.'),
+      R('山根 … 狹而低者 主孤貧', '衡眞 p14', '산근이 좁고 낮으면 외롭고 가난하다.'),
+    ]);
+    return out('mid', '산근 높이가 보통이다');
+  },
+  cheoni(m) {
+    if (zz(m, 'asym') > 2 * T) return out('bad', '얼굴의 좌우가 기울어 있다', [
+      R('天地偏斜 十居九變', '麻衣 p37', '하늘(이마)과 땅(턱)이 기울면 열 번 살면 아홉 번 옮긴다.'),
+    ]);
+    if (zz(m, 'browGap') < -2 * T) return out('bad', '두 눈썹이 이어질 듯 가깝다', [
+      R('眉連交接 破祖離家', '麻衣 p37', '눈썹이 이어져 맞닿으면 조상의 터를 깨고 집을 떠난다.'),
+    ]);
+    const s = zz(m, 'foreheadW');
+    if (s > T) return out('good', '이마 양옆(천창)이 넓게 찼다', [
+      R('隆滿豐盈 華彩無憂', '麻衣 p37', '솟고 풍만하면 화려하고 근심이 없다.'),
+    ]);
+    if (s < -T) return out('bad', '이마 양옆이 좁다', [
+      R('額角低陷 到老住場難', '麻衣 p37', '이마 모서리가 낮게 꺼지면 늙도록 머물 곳이 어렵다.'),
+    ]);
+    return out('mid', '이마 양옆이 보통이다');
+  },
+  gwanrok(m, { forehead }) {
+    const vis = forehead?.status === 'visible';
+    const h = vis ? (forehead.thirds.upper - 1 / 3) / 0.03 : null;
+    const s = vis ? mix(zz(m, 'foreheadW'), h) : zz(m, 'foreheadW');
+    const note = vis ? null : '이마가 드러나지 않아 이마 높이는 보지 않고 너비만 봤다.';
+    if (s > T) return out('good', vis ? '이마가 높고 넓다' : '이마가 넓다', [
+      R('天庭方正 位公卿', '麻衣 p169', '천정이 반듯하면 공경의 자리에 오른다.'),
+      R('額角堂堂', '麻衣 p37', '이마 모서리가 당당하다.'),
+    ], note);
+    if (s < -T) return out('bad', vis ? '이마가 낮고 좁다' : '이마가 좁다', [
+      R('髮低額窄 少前程', '麻衣 p169', '머리털이 낮고 이마가 좁으면 앞길이 적다.'),
+      R('削弱陷坑 無祿位', '麻衣 p169', '깎이고 꺼지면 녹봉과 벼슬이 없다.'),
+    ], note);
+    return out('mid', '이마가 보통이다', [], note);
+  },
+  bokdeok(m) {
+    const F = zz(m, 'foreheadW');
+    const C = zz(m, 'chinW');
+    if (F - C > 2 * T) return out('bad', '이마는 넓은데 턱 끝이 뾰족하다', [
+      R('額闊頦尖 迍邅在晚歲', '麻衣 p38', '이마가 넓고 턱이 뾰족하면 늘그막에 고생한다.'),
+    ]);
+    if (C - F > 2 * T) return out('bad', '턱은 둥근데 이마가 좁다', [
+      R('頦圓額窄 須知苦在初年', '麻衣 p38', '턱이 둥글고 이마가 좁으면 초년에 고생이 있다.'),
+    ]);
+    if (F > T / 2 && C > T / 2) return out('good', '이마와 턱이 함께 넉넉하다', [
+      R('天地相朝 德行須全', '麻衣 p38', '하늘과 땅(이마와 턱)이 서로 마주하면 덕행이 온전하다.'),
+    ]);
+    return out('mid', '이마와 턱의 균형이 보통이다');
+  },
+  bumo(m) {
+    const a = m.browAsym ?? 0;
+    if (a > 0.12) return out('bad', '왼쪽 눈썹이 오른쪽보다 높다', [
+      R('左眉高右眉低 父在母先歸', '麻衣 十二宮秘訣 p39~40', '왼쪽 눈썹이 높고 오른쪽이 낮으면 아버지가 계실 때 어머니가 먼저 돌아가신다.'),
+    ]);
+    if (zz(m, 'browGap') < -2 * T && zz(m, 'foreheadW') < -T) return out('bad', '이마가 좁고 눈썹이 맞닿았다', [
+      R('額削眉交 父母早拋', '麻衣 十二宮秘訣 p39~40', '이마가 깎이고 눈썹이 맞닿으면 부모를 일찍 여읜다.'),
+    ]);
+    return out('mid', '눈썹 높이가 좌우 고르다', [], '부모궁의 본 자리인 일각·월각(이마 위 양쪽)의 높고 둥긂은 사진으로 보지 않는다.');
+  },
 
-// 유년운기: 세는 나이 → 얼굴 자리. 귀가 맡는 1~14세는 사진으로 볼 수 없어 제외.
-const ZONES = [
-  { from: 15, to: 24, area: '이마 윗부분(천중·천정)', theme: '공부와 시험, 윗사람의 도움', score: (m) => zz(m, 'upper'),
-    good: '배운 것이 그대로 성과가 되는 시기입니다. 시험, 자격, 첫 직장에서 기회를 잡으세요.', bad: '노력에 비해 인정이 늦게 오는 시기입니다. 조급해하지 말고 기초를 다지면 다음 운에서 크게 받습니다.' },
-  { from: 25, to: 27, area: '이마 가운데(중정)', theme: '사회 진출과 자리 잡기', score: (m) => zz(m, 'upper'),
-    good: '하는 일이 눈에 띄고 자리가 잡히는 시기입니다. 큰 조직이나 큰 무대에 도전해 보세요.', bad: '방향을 정하는 데 시간이 걸리는 시기입니다. 여러 길을 짧게 시험해 보는 것이 오히려 이롭습니다.' },
-  { from: 28, to: 28, area: '인당', theme: '인생의 방향 전환', score: (m) => zz(m, 'browGap'),
-    good: '막혀 있던 일이 풀리고 인생의 방향이 선명해지는 해입니다. 새 출발에 좋은 때입니다.', bad: '마음이 복잡해지기 쉬운 해입니다. 큰 결정은 혼자 하지 말고 믿는 사람과 상의하세요.' },
-  { from: 29, to: 30, area: '이마 양옆(산림)', theme: '이동과 기반 다지기', score: (m) => zz(m, 'foreheadW'),
-    good: '이사, 이직, 유학처럼 자리를 옮기는 일에 운이 따릅니다.', bad: '자리를 옮기기보다 지금 자리에서 기반을 다지는 것이 좋은 시기입니다.' },
-  { from: 31, to: 34, area: '눈썹(능운·자기·번하·채하)', theme: '인맥과 동료', score: (m) => zz(m, 'browLen'),
-    good: '사람이 운을 데려오는 시기입니다. 모임과 협업에서 기회가 생깁니다.', bad: '사람 문제로 힘이 빠질 수 있는 시기입니다. 동업과 보증은 피하세요.' },
-  { from: 35, to: 40, area: '눈(태양·태음·중양·중음·소양·소음)', theme: '능력 발휘, 연애와 결혼', score: (m) => mix(zz(m, 'eyeSize'), zz(m, 'eyeTilt')),
-    good: '눈빛에 힘이 실리는 시기입니다. 능력을 인정받고, 연애·결혼에서도 좋은 인연이 닿습니다.', bad: '판단이 흐려지기 쉬운 시기입니다. 계약서와 사람을 한 번 더 확인하세요.' },
-  { from: 41, to: 43, area: '산근(콧대 뿌리)', theme: '건강과 일의 고비', score: (m) => zz(m, 'bridgeDepth'),
-    good: '고비가 와도 가볍게 넘기는 시기입니다. 체력이 받쳐 주니 승부를 걸어도 좋습니다.', bad: '관상에서 대표적인 고비로 보는 나이입니다. 건강검진과 휴식을 먼저 챙기고, 무리한 확장은 미루세요.' },
-  { from: 44, to: 45, area: '콧대(연상·수상)', theme: '지위와 권한', score: (m) => zz(m, 'noseLength'),
-    good: '권한과 책임이 커지는 시기입니다. 승진이나 독립에 좋은 때입니다.', bad: '책임은 늘고 보상은 늦는 시기입니다. 맡을 일을 골라 받으세요.' },
-  { from: 46, to: 47, area: '관골(광대뼈)', theme: '권세와 대외 활동', score: (m) => -zz(m, 'asym'),
-    good: '얼굴의 균형이 좋아 대외 활동에서 힘을 얻는 시기입니다. 이름을 알릴 기회가 옵니다.', bad: '경쟁이 치열해지는 시기입니다. 앞에 나서기보다 실속을 챙기세요.' },
-  { from: 48, to: 50, area: '코끝·콧방울(준두·난대·정위)', theme: '재물 수확', score: (m) => zz(m, 'noseWidth'),
-    good: '재물운의 정점이라 할 수 있는 시기입니다. 그동안 쌓은 것이 돈이 되어 돌아옵니다.', bad: '들어오는 돈만큼 나가는 돈도 큰 시기입니다. 투자보다 지키는 쪽을 택하세요.' },
-  { from: 51, to: 51, area: '인중', theme: '생활 기반과 자녀', score: (m) => zz(m, 'philtrum'),
-    good: '인중이 길어 생활 기반이 단단해지는 해입니다. 가족에게 좋은 일이 생깁니다.', bad: '생활의 기반을 점검할 해입니다. 가족과의 대화를 늘리세요.' },
-  { from: 52, to: 59, area: '입 주변(법령·식록)', theme: '식록과 노후 준비', score: (m) => zz(m, 'mouthWidth'),
-    good: '먹고사는 걱정이 줄어드는 시기입니다. 노후를 위한 기반을 넓히기 좋습니다.', bad: '수입 구조를 다시 짜야 하는 시기입니다. 고정 수입을 늘리는 데 집중하세요.' },
-  { from: 60, to: 60, area: '입(수성)', theme: '말과 신용', score: (m) => mix(zz(m, 'mouthWidth'), zz(m, 'lipThickness')),
-    good: '말에 무게가 실리는 해입니다. 조언과 가르침으로 존경을 받습니다.', bad: '말 한마디가 오해를 부르기 쉬운 해입니다. 말을 아끼세요.' },
-  { from: 61, to: 75, area: '턱(승장·지각·노복)', theme: '인덕과 말년의 기반', score: (m) => mix(zz(m, 'jaw'), zz(m, 'lower')),
-    good: '턱이 받쳐 주어 말년이 든든한 시기입니다. 사람과 재물이 곁에 남습니다.', bad: '가진 것을 나누며 관계를 지키는 시기입니다. 인덕이 곧 말년의 재산입니다.' },
-  { from: 76, to: 130, area: '턱 아래와 얼굴 전체', theme: '여유와 장수', score: (m) => mix(zz(m, 'lower'), -zz(m, 'asym')),
-    good: '얼굴 전체의 기운이 고르게 받쳐 주는 시기입니다. 여유롭고 평안합니다.', bad: '무리하지 않는 것이 곧 복인 시기입니다. 건강을 최우선으로 두세요.' },
-];
+  // 오악
+  jungak(m) {
+    const s = mix(zz(m, 'noseLength'), zz(m, 'bridgeDepth'), zz(m, 'noseMidHeight'));
+    if (s > T) return out('good', '코가 높이 솟았다', [R('中嶽要得高隆', '麻衣 p41', '중악(코)은 높이 솟아야 한다.')]);
+    if (s < -T) return out('bad', '코가 낮고 얇다', [R('中嶽薄而無勢 則四嶽無主', '麻衣 p41', '중악이 얇고 기세가 없으면 나머지 네 산에 주인이 없다.')]);
+    return out('mid', '코의 높이가 보통이다');
+  },
+  dongseo(m) {
+    const s = zz(m, 'cheekProm');
+    if (s > T) return out('good', '두 광대가 솟았다', [
+      R('東西嶽須聳而朝應', '麻衣 p41', '동악·서악(두 광대)은 솟아서 서로 응해야 한다.'),
+      R('顴 … 端聳豐澤者 有權勢', '衡眞 p20', '광대가 반듯하게 솟고 풍성하면 권세가 있다.'),
+    ]);
+    if (s < -T) return out('bad', '두 광대가 낮다', [R('顴 … 低陷者 無勢', '衡眞 p20', '광대가 낮게 꺼지면 권세가 없다.')]);
+    return out('mid', '광대가 보통이다');
+  },
+  namak(m, { forehead }) {
+    if (zz(m, 'foreheadTilt') > 2 * T) return out('bad', '이마가 한쪽으로 기울었다', [R('南嶽傾側 主見破', '麻衣 p41', '남악(이마)이 기울면 깨어짐을 본다.')]);
+    if (forehead?.status === 'visible' && forehead.thirds.upper > 1 / 3 + 0.02) return out('good', '이마가 높고 반듯하다', [
+      R('天庭高廣 少年富貴', '衡眞 p9', '천정이 높고 넓으면 젊어서 부귀하다.'),
+    ]);
+    return out('mid', '이마가 반듯하다', [], forehead?.status === 'visible' ? null : '이마가 드러나지 않아 높이는 보지 않았다.');
+  },
+  bukak(m) {
+    const s = mix(zz(m, 'chinW'), zz(m, 'jaw'));
+    if (s > T) return out('good', '턱이 반듯하고 넉넉하다', [R('地閣 … 端方平厚者 貴而富', '衡眞 p31', '지각이 반듯하고 평평하며 두터우면 귀하고 부유하다.')]);
+    if (s < -T) return out('bad', '턱이 뾰족하고 좁다', [
+      R('北嶽尖陷 末主無成', '麻衣 p41', '북악(턱)이 뾰족하거나 꺼지면 말년에 이루는 것이 없다.'),
+      R('地閣 … 狹薄削小者 貧賤', '衡眞 p31', '지각이 좁고 얇고 깎여 작으면 가난하고 천하다.'),
+    ]);
+    return out('mid', '턱이 보통이다');
+  },
 
-const MID_TEXT = (z) => `${z.theme}에서 큰 기복 없이 흘러가는 시기입니다. 지금 하는 일을 꾸준히 이어 가면 다음 운으로 자연스럽게 넘어갑니다.`;
-
-/** 세는 나이 (올해 - 태어난 해 + 1) */
-export const koreanAge = (birthYear, thisYear = new Date().getFullYear()) => thisYear - birthYear + 1;
-
-export function zoneAt(age) {
-  return ZONES.find((z) => age >= z.from && age <= z.to) ?? null;
-}
-
-/** 올해와 앞으로 4년의 유년운기 */
-export function yearlyFlow(m, birthYear, thisYear = new Date().getFullYear()) {
-  const out = [];
-  for (let i = 0; i < 5; i++) {
-    const age = koreanAge(birthYear, thisYear + i);
-    const zone = zoneAt(age);
-    if (!zone) {
-      out.push({ year: thisYear + i, age, zone: null, grade: 'mid', text: '1~14세는 귀가 운을 맡는 나이라 사진으로 보지 않습니다.' });
-      continue;
+  // 오관
+  bosu(m, ctx) {
+    const h = J.hyungje(m, ctx);
+    if (h.grade === 'bad') return h;
+    if (zz(m, 'browGap') < -2 * T) return out('bad', '두 눈썹 머리가 맞닿을 듯하다', [R('眉頭交 貧薄 妨兄弟', '麻衣 論眉 p69~76', '눈썹 머리가 맞닿으면 가난하고 형제를 해친다.')]);
+    if (h.grade === 'good' && zz(m, sideKey('browEye', ctx.side)) > -T) return out('good', '눈썹이 눈보다 길고 두 눈썹이 떨어져 높이 자리했다', [
+      R('寬廣清長 雙分入鬢 … 高居額中', '麻衣 p40', '보수관(눈썹)은 넓고 길며, 둘로 나뉘어 귀밑머리로 들어가고, 이마 가운데 높이 자리해야 이루어진다.'),
+    ]);
+    return out('mid', '눈썹이 보통이다');
+  },
+  gamchal(m, { side }) {
+    const refs = [];
+    let score = 0;
+    const tilt = m[sideKey('eyeTilt', side)] ?? m.eyeTilt;
+    if (zz(m, sideKey('eyeAspect', side)) > T) {
+      score++;
+      refs.push(R('目秀而長 近君王', '麻衣 相目 p78', '눈이 빼어나고 길면 임금 가까이 간다.'));
     }
-    const grade = gradeOf(zone.score(m));
-    out.push({
-      year: thisYear + i,
-      age,
-      area: zone.area,
-      theme: zone.theme,
-      range: zone.from === zone.to ? `${zone.from}세` : `${zone.from}~${Math.min(zone.to, 99)}세`,
-      grade,
-      text: grade === 'mid' ? MID_TEXT(zone) : zone[grade],
-    });
+    if (tilt > 0.1) {
+      score++;
+      refs.push(R('目尾朝天 福祿綿綿', '麻衣 相目 p78', '눈꼬리가 하늘을 향하면 복록이 끊이지 않는다.'));
+    } else if (tilt < -0.03) {
+      score--;
+      refs.push(R('目尾相垂 夫妻相離', '麻衣 相目 p78', '눈꼬리가 아래로 처지면 부부가 서로 떨어진다.'));
+    }
+    if (zz(m, 'eyeSize') < -2 * T) {
+      score--;
+      refs.push(R('短小 賤', '麻衣 相目 p77~78', '눈이 짧고 작으면 천하다.'));
+    }
+    const look = [
+      zz(m, sideKey('eyeAspect', side)) > T ? '눈이 가늘고 길다' : null,
+      tilt > 0.1 ? '눈꼬리가 위를 향한다' : tilt < -0.03 ? '눈꼬리가 아래로 처졌다' : null,
+      zz(m, 'eyeSize') < -2 * T ? '눈이 작다' : null,
+    ].filter(Boolean).join(', ') || '눈의 형상이 보통이다';
+    const note = '감찰관의 핵심인 눈빛(神)과 흑백의 분명함은 사진으로 보지 않았다.';
+    return out(score > 0 ? 'good' : score < 0 ? 'bad' : 'mid', look, refs, note);
+  },
+  simbyeon(m) {
+    const s = mix(zz(m, 'bridgeDepth'), zz(m, 'noseMidHeight'), zz(m, 'noseWidth'));
+    if (zz(m, 'noseWidth') < -2 * T) return out('bad', '준두(코끝)가 좁고 뾰족하다', [R('準頭尖削 好爲奸詐', '麻衣 相鼻 p90~95', '준두가 뾰족하게 깎이면 간사한 짓을 좋아한다.')]);
+    if (zz(m, 'noseMidHeight') < -2 * T) return out('bad', '콧대가 낮다', [R('鼻梁無骨 夭', '麻衣 相鼻 p90~95', '콧대에 뼈가 없으면 일찍 죽는다.')]);
+    if (s > T) return out('good', '산근에서 연상·수상까지 높고 콧방울이 일어났다', [
+      R('梁柱端直 … 山根連印 年壽高隆 準圓庫起', '麻衣 p40', '심변관(코)은 콧대가 곧고, 산근이 인당에 이어지며, 연상·수상이 높이 솟고, 준두가 둥글고 콧방울이 일어나야 이루어진다.'),
+    ]);
+    return out('mid', '코가 보통이다', [], '콧대가 곧은지(端直)는 고개 각도와 구별되지 않아 보지 않았다.');
+  },
+  chulnap(m, { gender }) {
+    const refs = [];
+    let score = 0;
+    const looks = [];
+    const w = zz(m, 'mouthWidth');
+    if (w > T) {
+      score++;
+      looks.push('입이 크다');
+      refs.push(R('口闊唇方 必定有財有祿', '衡眞 p28', '입이 넓고 입술이 반듯하면 반드시 재물과 녹봉이 있다.'));
+      if (gender === 'm') refs.push(R('男人口闊 喫十方', '衡眞 p26', '남자 입이 넓으면 사방에서 먹을 것을 얻는다.'));
+      if (gender === 'f') {
+        score--;
+        refs.push(R('女人口闊 守空房', '衡眞 p26', '여자 입이 넓으면 빈 방을 지킨다.'));
+      }
+    } else if (w < -2 * T) {
+      score--;
+      looks.push('입이 작다');
+      refs.push(R('口小而短者 貧', '麻衣 相口 p99~100', '입이 작고 짧으면 가난하다.'));
+    }
+    if (m.mouthCorner > 0.03) {
+      score++;
+      looks.push('입꼬리가 올라갔다');
+      refs.push(R('口角如弓 位至三公', '麻衣 相口 p100', '입꼬리가 활처럼 올라가면 삼공의 자리에 오른다.'));
+    } else if (m.mouthCorner < -0.03) {
+      score--;
+      looks.push('입꼬리가 처졌다');
+      refs.push(R('口垂兩角 衣食難求', '麻衣 相口 p100', '입 양끝이 처지면 입고 먹을 것을 구하기 어렵다.'));
+    }
+    const up = zz(m, 'upperLip');
+    const lo = zz(m, 'lowerLip');
+    if (up > T && lo > T) {
+      score++;
+      looks.push('입술이 위아래 모두 두툼하다');
+      refs.push(R('上下俱厚 忠信', '麻衣 相唇 p106', '위아래 입술이 모두 두터우면 충성스럽고 믿음직하다.'));
+    } else if (up < -T && lo < -T) {
+      score--;
+      looks.push('입술이 위아래 모두 얇다');
+      refs.push(R('上下俱薄 妄語下劣', '麻衣 相唇 p106', '위아래 입술이 모두 얇으면 망령된 말을 하고 하찮다.'));
+    } else if (up < -2 * T) {
+      score--;
+      looks.push('윗입술이 얇다');
+      refs.push(R('上唇薄 言語狡詐', '麻衣 相唇 p106', '윗입술이 얇으면 말이 교활하다.'));
+    } else if (lo < -2 * T) {
+      score--;
+      looks.push('아랫입술이 얇다');
+      refs.push(R('下唇薄 貧寒', '麻衣 相唇 p106', '아랫입술이 얇으면 가난하고 춥다.'));
+    }
+    return out(score > 0 ? 'good' : score < 0 ? 'bad' : 'mid', looks.join(', ') || '입이 보통이다', refs, '입술 빛깔(唇紅)은 사진으로 보지 않았다.');
+  },
+
+  // 인중
+  injung(m) {
+    const s = zz(m, 'philtrum');
+    if (s > T) return out('good', '인중이 길다', [
+      R('人中之長短 可定壽命之長短', '麻衣 相人中 p98', '인중의 길고 짧음으로 수명의 길고 짧음을 정한다.'),
+      R('深而長 長壽', '麻衣 相人中 p98', '깊고 길면 오래 산다.'),
+      R('欲長而不欲縮', '衡眞 p23', '인중은 길어야 하고 오그라들면 안 된다.'),
+    ], '인중의 깊이는 사진으로 보지 않았다.');
+    if (s < -T) return out('bad', '인중이 짧다', [
+      R('人中之長短 可定壽命之長短', '麻衣 相人中 p98', '인중의 길고 짧음으로 수명의 길고 짧음을 정한다.'),
+      R('淺而短 夭亡', '麻衣 相人中 p98', '얕고 짧으면 일찍 죽는다.'),
+    ], '인중의 깊이는 사진으로 보지 않았다.');
+    return out('mid', '인중 길이가 보통이다', [], '인중의 깊이는 사진으로 보지 않았다.');
+  },
+};
+
+// ── 묶음 정의 ──
+export const PALACES = [
+  ['myung', '명궁', '命宮', '인당', '운명 전체', 'A'],
+  ['jaebaek', '재백궁', '財帛宮', '코', '재물', 'A'],
+  ['hyungje', '형제궁', '兄弟宮', '눈썹', '형제·벗', 'A'],
+  ['jeontaek', '전택궁', '田宅宮', '두 눈', '집과 땅', 'A'],
+  ['namnyeo', '남녀궁', '男女宮', '눈 밑(누당)', '자녀', 'B'],
+  ['nobok', '노복궁', '奴僕宮', '지각(턱 끝)', '아랫사람', 'A'],
+  ['cheocheop', '처첩궁', '妻妾宮', '어미·간문(눈꼬리 옆)', '배우자', 'B'],
+  ['jilaek', '질액궁', '疾厄宮', '산근', '질병·재액', 'B'],
+  ['cheoni', '천이궁', '遷移宮', '이마 양옆(천창)', '이동·거처', 'A'],
+  ['gwanrok', '관록궁', '官祿宮', '이마 가운데(중정)', '벼슬·명예', 'A'],
+  ['bokdeok', '복덕궁', '福德宮', '천창과 지각', '타고난 복', 'A'],
+  ['sangmo', '상모궁', '相貌宮', '얼굴 전체(오악·삼정)', '전체 모습', 'A'],
+  ['bumo', '부모궁', '父母宮', '일월각·눈썹', '부모', 'A'],
+].map(([key, name, hanja, area, domain, conf]) => ({ key, name, hanja, area, domain, conf }));
+
+export const WUYUE = [
+  ['namak', '남악(형산)', '이마'],
+  ['dongseo', '동·서악(태산·화산)', '두 광대'],
+  ['jungak', '중악(숭산)', '코'],
+  ['bukak', '북악(항산)', '턱'],
+].map(([key, name, area]) => ({ key, name, area, conf: key === 'dongseo' || key === 'jungak' ? 'B' : 'A' }));
+
+export const WUGUAN = [
+  ['bosu', '보수관', '保壽官', '눈썹'],
+  ['gamchal', '감찰관', '監察官', '눈'],
+  ['simbyeon', '심변관', '審辨官', '코'],
+  ['chulnap', '출납관', '出納官', '입'],
+  ['chaecheong', '채청관', '採聽官', '귀'],
+].map(([key, name, hanja, area]) => ({ key, name, hanja, area }));
+
+function judgeSangmo(results, thirds) {
+  const vals = WUYUE.map((w) => results[w.key].grade);
+  const good = vals.filter((g) => g === 'good').length;
+  const bad = vals.filter((g) => g === 'bad').length;
+  if (bad >= 2 || thirds.grade === 'bad') return out('bad', '오악이나 삼정에 이지러진 곳이 있다', [
+    R('若有虧陷 斷爲凶惡', '麻衣 p38', '(오악·삼정에) 이지러지고 꺼진 데가 있으면 흉하다고 판단한다.'),
+  ]);
+  if (good >= 2 && bad === 0) {
+    const refs = [R('五嶽朝聳 官祿榮遷', '麻衣 p38', '오악이 솟아 서로 향하면 벼슬과 녹봉이 영화롭게 오른다.')];
+    if (thirds.grade === 'good') refs.push(R('三停俱等 永保平生顯達', '麻衣 p38', '삼정이 모두 고르면 평생 높이 드러남을 길이 지킨다.'));
+    return out('good', '오악이 고르게 솟았다', refs);
   }
-  return out;
+  return out('mid', '오악이 고르다');
 }
 
-/** 삼정 — 초년(이마)·중년(눈썹~코끝)·말년(인중~턱) */
-export function readThirds(m) {
+/** 삼정: 머리선이 보일 때만 판정 */
+export function judgeThirds(forehead) {
+  if (forehead?.status !== 'visible') {
+    return {
+      ...unread(`${forehead?.reason ?? '이마를 확인하지 못했어요'}. 원전은 상정을 머리선(髮際)부터 재므로 상정(초년)과 삼정의 균형은 판정하지 않습니다. 이마를 드러내고 찍으면 볼 수 있어요.`),
+      parts: null,
+    };
+  }
+  const t = forehead.thirds;
+  const vals = [t.upper, t.middle, t.lower];
+  const ratio = Math.max(...vals) / Math.min(...vals);
   const parts = [
-    ['초년', '15~30세', '이마(상정)', zz(m, 'upper')],
-    ['중년', '31~50세', '눈썹~코끝(중정)', zz(m, 'middle')],
-    ['말년', '51세 이후', '인중~턱(하정)', zz(m, 'lower')],
+    { name: '상정', ages: '초년(15~30세)', area: '머리선~인당', v: t.upper },
+    { name: '중정', ages: '중년(31~50세)', area: '인당~준두', v: t.middle },
+    { name: '하정', ages: '말년(51세~)', area: '인중~지각', v: t.lower },
   ];
-  return parts.map(([name, ages, area, s]) => ({ name, ages, area, grade: gradeOf(s) }));
+  const refs = [];
+  if (t.upper > 0.36) refs.push(R('上停隆滿者 主初年福祿', '衡眞 p4', '상정이 솟고 가득하면 초년에 복록이 있다.'));
+  if (t.middle > 0.36) refs.push(R('中停豐厚者 主中年成立', '衡眞 p4', '중정이 풍후하면 중년에 일어선다.'));
+  if (t.lower < 0.3) refs.push(R('下停缺陷者 主晚年破敗', '衡眞 p4', '하정이 이지러지면 말년에 무너진다.'));
+  if (ratio < 1.12) return { ...out('good', '세 정의 길이가 고르다', [R('三停平等 富貴榮顯', '麻衣 p49', '삼정이 고르면 부귀하고 영화롭게 드러난다.'), ...refs]), parts };
+  if (ratio > 1.3) return { ...out('bad', '세 정의 길이가 고르지 않다', [R('三停不均 孤夭貧賤', '麻衣 p49', '삼정이 고르지 않으면 외롭고 일찍 죽으며 가난하고 천하다.'), ...refs]), parts };
+  return { ...out('mid', '세 정의 길이가 대체로 고르다', refs), parts };
 }
 
-/** 총평: 가장 강한 궁과 가장 약한 궁 */
-export function summarize(palaces) {
-  const sorted = [...palaces].sort((a, b) => b.score - a.score);
-  const best = sorted[0];
-  const worst = sorted.at(-1);
+/**
+ * 전체 판정
+ * @param {object} m 측정 지표
+ * @param {{forehead?:object, gender?:'m'|'f'|null}} opts
+ */
+export function readFace(m, { forehead = null, gender = null } = {}) {
+  const ctx = { side: null, forehead, gender };
+  const r = {};
+  for (const k of Object.keys(J)) r[k] = J[k](m, ctx);
+  r.chaecheong = unread('귀는 정면 사진에서 보이지 않아 판정하지 않습니다.');
+  const thirds = judgeThirds(forehead);
+  r.sangmo = judgeSangmo(r, thirds);
+
+  const palaces = PALACES.map((p) => ({ ...p, ...r[p.key] }));
+  const wuyue = WUYUE.map((w) => ({ ...w, ...r[w.key] }));
+  const wuguan = WUGUAN.map((w) => ({ ...w, ...r[w.key] }));
+  const formed = wuguan.filter((w) => w.grade === 'good').length;
+
   return {
-    best,
-    worst,
-    tags: sorted.slice(0, 3).map((p) => p.tag),
-    headline: `${josa(best.domain, '이/가')} 가장 빛나는 얼굴`,
-    sub: worst.grade === 'bad' ? `${worst.domain}만 챙기면 운이 더 커집니다` : '크게 약한 자리 없이 고른 상입니다',
+    results: r,
+    thirds,
+    palaces,
+    wuyue,
+    wuguan,
+    wuguanSummary: {
+      formed,
+      refs: [R('一官成 十年之貴顯 / 五官俱成 其貴老終', '麻衣 p40', '한 관이 이루어지면 십 년 귀하게 드러나고, 오관이 모두 이루어지면 늙도록 귀하다.')],
+      text: `귀를 뺀 네 관 중 ${formed}개가 이루어졌다.`,
+    },
+    injung: r.injung,
+    relations: relationsOf(r),
+    summary: summaryOf(r, palaces),
   };
 }
 
-/** 유년운기 자리 전체와 각 자리의 등급 (관상도에 쓴다) */
-export function zoneGrades(m) {
-  return ZONES.map((z) => ({ from: z.from, to: z.to, area: z.area, grade: gradeOf(z.score(m)) }));
+/** 관계: 원전은 상대 얼굴이 아니라 내 얼굴의 해당 자리로 본다 */
+function relationsOf(r) {
+  return [
+    { who: '형제·벗', items: [['형제궁(눈썹)', r.hyungje]] },
+    { who: '배우자', items: [['처첩궁(간문)', r.cheocheop], ['눈꼬리(目尾)', r.gamchal], ['산근', r.jilaek]] },
+    { who: '자녀', items: [['남녀궁(누당)', r.namnyeo]] },
+    { who: '아랫사람', items: [['노복궁(지각)', r.nobok]] },
+    { who: '부모', items: [['부모궁', r.bumo]] },
+  ];
+}
+
+const W = { gamchal: 5, gwanrok: 3, namak: 3, bosu: 2, simbyeon: 2, chulnap: 2 };
+const NUM = { good: 1, mid: 0, bad: -1 };
+
+/** 총평: 達磨 第四法 가중치 + 第五法 */
+function summaryOf(r, palaces) {
+  let sum = 0;
+  let wsum = 0;
+  for (const [k, w] of Object.entries(W)) {
+    if (r[k].grade === 'unread') continue;
+    sum += NUM[r[k].grade] * w;
+    wsum += w;
+  }
+  const overall = wsum ? sum / wsum : 0;
+  // 상모궁은 다른 자리를 합친 판정이라 '가장 좋은/약한 자리'에서는 뺀다
+  const order = palaces.filter((p) => p.grade !== 'unread' && p.key !== 'sangmo');
+  const best = order.find((p) => p.grade === 'good') ?? null;
+  const worst = order.find((p) => p.grade === 'bad') ?? null;
+  return {
+    overall,
+    grade: overall > 0.25 ? 'good' : overall < -0.25 ? 'bad' : 'mid',
+    best,
+    worst,
+    goods: order.filter((p) => p.grade === 'good').map((p) => p.name),
+    bads: order.filter((p) => p.grade === 'bad').map((p) => p.name),
+    method: [
+      R('人面分十分 眼五分 額三分 眉口鼻耳二分', '麻衣 達磨相訣 p145', '얼굴을 열로 나누면 눈이 다섯, 이마가 셋, 눈썹·입·코·귀가 둘이다.'),
+      R('問貴在眼 問富在鼻 問壽在神 求全在聲', '麻衣 達磨相訣 p146', '귀함은 눈에, 재물은 코에, 수명은 신(神)에, 온전함은 소리에 묻는다.'),
+    ],
+    pillars: [
+      { q: '貴', name: '귀(貴) — 눈', grade: r.gamchal.grade },
+      { q: '富', name: '부(富) — 코', grade: r.jaebaek.grade },
+      { q: '壽', name: '수(壽) — 신(神)', grade: 'unread' },
+      { q: '全', name: '전(全) — 소리', grade: 'unread' },
+    ],
+  };
+}
+
+// ── 유년운기 (麻衣 p29~31) ──
+// [시작, 끝, 부위, 판정키, 좌우 있음]
+export const ZONES = [
+  [1, 14, '귀(천륜·인륜·지륜)', null],
+  [15, 15, '화성(이마 한가운데)', 'forehead'],
+  [16, 16, '천중', 'forehead'],
+  [17, 18, '일각·월각', 'forehead'],
+  [19, 19, '천정', 'forehead'],
+  [20, 21, '보각', 'cheoni'],
+  [22, 22, '사공', 'forehead'],
+  [23, 24, '변성', 'cheoni'],
+  [25, 25, '중정', 'forehead'],
+  [26, 27, '구릉·총묘', null],
+  [28, 28, '인당', 'myung'],
+  [29, 30, '산림', 'cheoni'],
+  [31, 34, '눈썹(능운·자기·번하·채하)', 'bosu', true],
+  [35, 40, '눈(태양·태음·중양·중음·소양·소음)', 'gamchal', true],
+  [41, 41, '산근', 'jilaek'],
+  [42, 43, '정사·광전', 'jilaek'],
+  [44, 45, '연상·수상', 'simbyeon'],
+  [46, 47, '광대(관골)', 'dongseo'],
+  [48, 48, '준두', 'jaebaek'],
+  [49, 50, '난대·정위', 'jaebaek'],
+  [51, 51, '인중', 'injung'],
+  [52, 55, '선고·식창·녹창', null],
+  [56, 57, '법령', null],
+  [58, 59, '호이', null],
+  [60, 60, '수성(입)', 'chulnap'],
+  [61, 61, '승장', null],
+  [62, 63, '지고', 'bukak'],
+  [64, 65, '파지·아압', null],
+  [66, 69, '금루·귀래', 'nobok'],
+  [70, 70, '송당', null],
+  [71, 71, '지각', 'bukak'],
+  [72, 73, '노복', 'nobok'],
+  [74, 75, '시골(턱뼈)', 'nobok'],
+  [76, 99, '얼굴 둘레 십이지(자~해)', null],
+  [100, 150, '송당·조상(다시 돎)', null],
+].map(([from, to, area, key, paired]) => ({ from, to, area, key, paired: !!paired }));
+
+const UNREAD_WHY = {
+  null: '이 나이를 맡은 자리는 사진으로 판정할 수 없어(귀·주름·얼굴 둘레 등) 보지 않습니다.',
+};
+
+export const ZONE_RULE = [
+  R('若逢部位好 順時氣色見光晶', '麻衣 p31', '그 해를 맡은 부위가 좋으면 때를 따라 순조롭다.'),
+  R('更逢破敗 屬幽冥', '麻衣 p31', '그 부위가 깨지고 무너졌으면 어둠(저승)에 속한다.'),
+];
+
+/** 이마 위쪽 자리(천중·천정·사공·중정 등)는 이마가 드러나야 판정 */
+function foreheadJudge(forehead) {
+  if (forehead?.status !== 'visible') return unread(`${forehead?.reason ?? '이마를 확인하지 못했어요'}. 이마 위쪽 자리는 이마를 드러내고 찍어야 볼 수 있어요.`);
+  const u = forehead.thirds.upper;
+  if (u > 0.36) return out('good', '이마가 높다', [R('天庭高廣 少年富貴', '衡眞 p9', '천정이 높고 넓으면 젊어서 부귀하다.')]);
+  if (u < 0.3) return out('bad', '이마가 낮다', [R('髮低額窄 少前程', '麻衣 p169', '머리털이 낮고 이마가 좁으면 앞길이 적다.')]);
+  return out('mid', '이마 높이가 보통이다');
+}
+
+/** 세는 나이 */
+export const koreanAge = (birthYear, thisYear = new Date().getFullYear()) => thisYear - birthYear + 1;
+export const zoneAt = (age) => ZONES.find((z) => age >= z.from && age <= z.to) ?? null;
+
+/** 한 자리의 판정 (男左女右) */
+export function judgeZone(zone, m, { forehead = null, gender = null } = {}) {
+  if (!zone.key) return unread(UNREAD_WHY.null);
+  if (zone.key === 'forehead') return foreheadJudge(forehead);
+  const side = zone.paired ? (gender === 'm' ? 'L' : gender === 'f' ? 'R' : null) : null;
+  return J[zone.key](m, { side, forehead, gender });
+}
+
+export function yearlyFlow(m, birthYear, opts = {}, thisYear = new Date().getFullYear()) {
+  const list = [];
+  for (let i = 0; i < 5; i++) {
+    const year = thisYear + i;
+    const age = koreanAge(birthYear, year);
+    const zone = zoneAt(age);
+    const j = judgeZone(zone, m, opts);
+    list.push({ year, age, area: zone.area, range: zone.from === zone.to ? `${zone.from}세` : `${zone.from}~${zone.to}세`, paired: zone.paired, ...j });
+  }
+  return list;
+}
+
+/** 관상도용: 모든 운기 자리의 판정 */
+export function zoneGrades(m, opts = {}) {
+  return ZONES.map((z) => ({ ...z, grade: judgeZone(z, m, opts).grade }));
 }
