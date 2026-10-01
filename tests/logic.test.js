@@ -1,0 +1,129 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { computeSaju } from '../src/lib/saju.js';
+import { BASE, faceElement, readFeatures, poseIssue } from '../src/lib/physiognomy.js';
+import { bridgeReading } from '../src/lib/bridge.js';
+import { bearing, directionOf, evaluateLocation, readExifGps, CITIES } from '../src/lib/location.js';
+import { compatibility, toPerson, encodePerson, decodePerson } from '../src/lib/compat.js';
+
+const avg = () => Object.fromEntries(Object.entries(BASE).map(([k, [mu]]) => [k, mu]));
+
+test('얼굴 오행형: 긴 얼굴은 목형, 둥근 얼굴은 수형, 각진 턱은 금형', () => {
+  assert.equal(faceElement({ ...avg(), aspect: 1.32, jaw: 0.74 }), 0);
+  assert.equal(faceElement({ ...avg(), aspect: 1.02 }), 4);
+  assert.equal(faceElement({ ...avg(), jaw: 0.85 }), 3);
+});
+
+test('부위별 해석 5개, 정면 판정', () => {
+  assert.equal(readFeatures(avg()).length, 5);
+  assert.equal(poseIssue({ yaw: 0.01, roll: 2 }), null);
+  assert.ok(poseIssue({ yaw: 0.2, roll: 0 }));
+});
+
+test('관상×사주 브릿지', () => {
+  const s = computeSaju({ year: 1995, month: 8, day: 20, hour: 9 });
+  const b = bridgeReading(s.lacking, s);
+  assert.ok(b.notes.some((n) => n.includes('빈자리')));
+});
+
+test('방위: 서울→부산은 남동, 서울→강릉은 동', () => {
+  const [seoul, busan] = CITIES;
+  const gangneung = CITIES.find((c) => c.name === '강릉');
+  assert.equal(directionOf(bearing(seoul, busan)).name, '남동');
+  assert.equal(directionOf(bearing(seoul, gangneung)).name, '동');
+});
+
+test('위치 풀이: 부족 오행 방향은 점수가 높다', () => {
+  const saju = { lacking: 0, excess: null, dayElement: 0 };
+  const seoul = CITIES[0];
+  const east = { lat: 37.5665, lon: 128.5 };
+  const west = { lat: 37.5665, lon: 125.5 };
+  const today = new Date(2000, 0, 7); // 갑자일(수)
+  const e = evaluateLocation({ origin: seoul, here: east, saju, faceEl: null, today });
+  const w = evaluateLocation({ origin: seoul, here: west, saju, faceEl: null, today });
+  assert.equal(e.direction.name, '동');
+  assert.equal(e.score, 3);
+  assert.equal(e.verdict.label, '대길');
+  assert.equal(w.score, -1);
+  const near = evaluateLocation({ origin: seoul, here: { lat: 37.567, lon: 126.979 }, saju, faceEl: null, today });
+  assert.equal(near.direction.name, '중앙');
+});
+
+function jpegWithGps(lat, lon, le = false) {
+  // TIFF: header(8) + IFD0(1 entry) + GPS IFD(4 entries) + rationals
+  const buf = new ArrayBuffer(200);
+  const v = new DataView(buf);
+  const t = 12; // TIFF 시작 오프셋
+  v.setUint16(0, 0xffd8);
+  v.setUint16(2, 0xffe1);
+  v.setUint16(4, 180);
+  v.setUint32(6, 0x45786966);
+  v.setUint16(t, le ? 0x4949 : 0x4d4d);
+  v.setUint16(t + 2, 42, le);
+  v.setUint32(t + 4, 8, le);
+  v.setUint16(t + 8, 1, le);
+  v.setUint16(t + 10, 0x8825, le);
+  v.setUint16(t + 12, 4, le);
+  v.setUint32(t + 14, 1, le);
+  v.setUint32(t + 18, 26, le);
+  let e = t + 26;
+  v.setUint16(e, 4, le);
+  e += 2;
+  const ent = (tag, type, cnt, val) => {
+    v.setUint16(e, tag, le);
+    v.setUint16(e + 2, type, le);
+    v.setUint32(e + 4, cnt, le);
+    if (type === 2) v.setUint8(e + 8, val.charCodeAt(0));
+    else v.setUint32(e + 8, val, le);
+    e += 12;
+  };
+  const latOff = 80;
+  const lonOff = 104;
+  ent(1, 2, 2, lat < 0 ? 'S' : 'N');
+  ent(2, 5, 3, latOff);
+  ent(3, 2, 2, lon < 0 ? 'W' : 'E');
+  ent(4, 5, 3, lonOff);
+  const rat = (off, deg) => {
+    const a = Math.abs(deg);
+    const d = Math.floor(a);
+    const m = Math.floor((a - d) * 60);
+    const s = Math.round(((a - d) * 60 - m) * 60 * 100);
+    [[d, 1], [m, 1], [s, 100]].forEach(([n, den], i) => {
+      v.setUint32(t + off + i * 8, n, le);
+      v.setUint32(t + off + i * 8 + 4, den, le);
+    });
+  };
+  rat(latOff, lat);
+  rat(lonOff, lon);
+  return buf;
+}
+
+test('EXIF GPS 파싱 (빅/리틀 엔디언)', () => {
+  for (const le of [false, true]) {
+    const g = readExifGps(jpegWithGps(37.5665, 126.978, le));
+    assert.ok(Math.abs(g.lat - 37.5665) < 1e-3 && Math.abs(g.lon - 126.978) < 1e-3, JSON.stringify(g));
+  }
+  assert.equal(readExifGps(new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer), null);
+});
+
+test('궁합 점수 범위와 공유 코드 왕복', () => {
+  const a = toPerson('민지', computeSaju({ year: 1998, month: 3, day: 2, hour: 10 }), 0);
+  const b = toPerson('준호', computeSaju({ year: 1997, month: 11, day: 21, hour: null }), null);
+  const c = compatibility(a, b);
+  assert.ok(c.score >= 5 && c.score <= 99);
+  assert.deepEqual(decodePerson(encodePerson(a)), a);
+  assert.equal(decodePerson('garbage!!'), null);
+});
+
+test('웃는 얼굴·벌린 입은 다시 찍도록 안내', () => {
+  assert.ok(poseIssue({ yaw: 0, roll: 0 }, { smile: 0.8, jawOpen: 0 }));
+  assert.ok(poseIssue({ yaw: 0, roll: 0 }, { smile: 0, jawOpen: 0.5 }));
+  assert.equal(poseIssue({ yaw: 0, roll: 0 }, { smile: 0.1, jawOpen: 0.05 }), null);
+});
+
+test('조사 자동 선택', async () => {
+  const { josa } = await import('../src/lib/josa.js');
+  assert.equal(josa('수아', '이/가'), '수아가');
+  assert.equal(josa('민준', '이/가'), '민준이');
+  assert.equal(josa('Tom', '은/는'), 'Tom은(는)');
+});

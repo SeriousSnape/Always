@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>얼굴사주</title>
+    <meta name="description" content="얼굴(관상)에서 시작해 사주, 지금 있는 자리, 친구 관계까지 풀어 주는 재미 풀이" />
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>얼굴사주 <span>觀相 × 四柱</span></h1>
+      <p class="tag">얼굴로 시작해서 사주, 지금 이 자리, 친구 관계까지</p>
+    </header>
+
+    <main>
+      <div id="invite" class="card invite" hidden></div>
+
+      <!-- 1. 동의 -->
+      <section id="step-consent" class="card">
+        <h2>시작하기 전에</h2>
+        <ul class="facts">
+          <li>📷 사진은 <b>이 기기 안에서만</b> 분석하고, 어디에도 전송하거나 저장하지 않아요.</li>
+          <li>📍 위치도 기기 안에서 방향만 계산하고 전송하지 않아요.</li>
+          <li>🎭 전통 관상·사주 이론을 재미로 풀어낸 결과예요. 과학적 판단이 아니에요.</li>
+        </ul>
+        <label class="check"><input type="checkbox" id="agree-age" /> 만 14세 이상이에요</label>
+        <label class="check"><input type="checkbox" id="agree-face" /> 얼굴 사진을 기기 안에서 분석하는 데 동의해요</label>
+        <button id="btn-start" class="primary" disabled>시작하기</button>
+      </section>
+
+      <!-- 2. 정보 입력 -->
+      <section id="step-profile" class="card" hidden>
+        <h2>1. 나의 정보</h2>
+        <form id="profile-form">
+          <label>닉네임 <input name="name" maxlength="10" required placeholder="예: 민지" /></label>
+          <label>생년월일 (양력) <input name="birth" type="date" required min="1930-01-01" max="2025-12-31" /></label>
+          <div class="row">
+            <label>태어난 시간 <input name="time" type="time" /></label>
+            <label class="check inline"><input type="checkbox" name="noTime" /> 모름</label>
+          </div>
+          <label>태어난 곳 <select name="city"></select></label>
+          <button class="primary">다음 — 얼굴 보기</button>
+        </form>
+      </section>
+
+      <!-- 3. 사진 -->
+      <section id="step-photo" class="card" hidden>
+        <h2>2. 얼굴 보기</h2>
+        <p class="hint">정면을 보고, <b>무표정으로</b>, 앞머리는 넘기고, 밝은 곳에서 찍어 주세요.</p>
+        <div class="stage">
+          <video id="video" playsinline muted hidden></video>
+          <canvas id="canvas" hidden></canvas>
+          <div id="stage-empty" class="stage-empty">🙂</div>
+        </div>
+        <div class="row buttons">
+          <button id="btn-camera">카메라로 찍기</button>
+          <label class="button">사진 올리기 <input id="file" type="file" accept="image/*" hidden /></label>
+        </div>
+        <button id="btn-shoot" class="primary" hidden>찰칵 (1초 동안 5장 분석)</button>
+        <p id="photo-status" class="status" role="status"></p>
+      </section>
+
+      <!-- 4. 결과 -->
+      <section id="step-result" hidden>
+        <nav class="tabs" role="tablist">
+          <button role="tab" data-tab="face" aria-selected="true">관상</button>
+          <button role="tab" data-tab="saju">사주</button>
+          <button role="tab" data-tab="place">이 자리</button>
+          <button role="tab" data-tab="friends">관계도</button>
+        </nav>
+
+        <div data-panel="face" class="card"></div>
+        <div data-panel="saju" class="card" hidden></div>
+
+        <div data-panel="place" class="card" hidden>
+          <h2>지금 이 자리, 나한테 좋을까?</h2>
+          <p class="hint">기준점에서 지금 위치가 어느 방향인지(후천팔괘)를 보고, 사주·관상·오늘 일진과 맞춰 봐요.</p>
+          <label>기준점 <select id="origin"></select></label>
+          <button id="btn-home" class="small">지금 위치를 '집'으로 저장</button>
+          <div class="row buttons">
+            <button id="btn-locate" class="primary">지금 위치로 보기</button>
+          </div>
+          <p id="place-status" class="status" role="status"></p>
+          <div id="place-result"></div>
+        </div>
+
+        <div data-panel="friends" class="card" hidden>
+          <h2>친구 관계도</h2>
+          <p class="hint">링크를 보내면 친구가 자기 얼굴로 직접 풀어보고, 결과 코드만 돌아와요. 생년월일·사진은 공유되지 않아요.</p>
+          <div class="row buttons">
+            <button id="btn-invite" class="primary">내 초대 링크 공유</button>
+            <button id="btn-graph-png">관계도 이미지 저장</button>
+          </div>
+          <div id="graph"></div>
+          <p id="edge-detail" class="edge-detail" role="status">선을 누르면 두 사람의 궁합이 보여요.</p>
+          <details>
+            <summary>링크 없이 친구 직접 추가 (생년월일만)</summary>
+            <p class="hint">본인 동의를 받은 친구만 추가해 주세요.</p>
+            <form id="friend-form">
+              <label>이름 <input name="name" maxlength="10" required /></label>
+              <label>생년월일 <input name="birth" type="date" required min="1930-01-01" max="2025-12-31" /></label>
+              <label>시간(선택) <input name="time" type="time" /></label>
+              <button>추가</button>
+            </form>
+          </details>
+          <div id="friend-list"></div>
+        </div>
+
+        <div class="row buttons end">
+          <button id="btn-card" class="primary">결과 카드 저장·공유</button>
+          <button id="btn-reset" class="ghost">처음부터</button>
+        </div>
+      </section>
+    </main>
+
+    <footer>모든 계산은 기기 안에서 이루어집니다 · 재미로 보는 풀이</footer>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
