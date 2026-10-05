@@ -222,3 +222,29 @@ test('관상도: 원전 자리 표시, 이마가 가려지면 상정을 빗금 �
   const vis = buildFaceChart({ metrics: m, mode: 'palace', palaces: res.palaces, zones: [], now: null, forehead: { status: 'visible', thirds: { upper: 0.33, middle: 0.33, lower: 0.34 } } });
   assert.doesNotMatch(vis.svg, /상정 불명확/);
 });
+
+test('측정값 기여: 보내는 값에 사진·좌표 없음, Apps Script 열 순서 일치', async () => {
+  const { buildPayload, METRIC_KEYS, ageBandOf } = await import('../src/lib/contribute.js');
+  const fs = await import('node:fs');
+  const gs = fs.readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
+  const keys = JSON.parse(gs.match(/var METRIC_KEYS = (\[.*?\]);/)[1]);
+  assert.deepEqual(keys, METRIC_KEYS);
+  const p = buildPayload({ metrics: avg(), forehead: { status: 'visible', thirds: { upper: 0.3, middle: 0.33, lower: 0.37 } }, gender: 'f', ageBand: '30대', device: 'abc' });
+  assert.deepEqual(Object.keys(p).sort(), ['ageBand', 'device', 'forehead', 'gender', 'metrics', 'thirds', 'v']);
+  assert.equal(p.metrics.length, METRIC_KEYS.length);
+  assert.equal(ageBandOf(1995, 2026), '30대');
+  assert.equal(ageBandOf(null), '');
+});
+
+test('보정 계산: 기기별 평균, 남녀 분리, 반복성', async () => {
+  const { parseCsv, calibrate } = await import('../src/lib/calibration.js');
+  let csv = 'received_at,v,device,gender,browGap\n';
+  // 5명, 각 3번씩: 사람 간 차이는 크고 같은 사람 안 흔들림은 작다
+  for (let p = 0; p < 5; p++) for (let k = 0; k < 3; k++) csv += `t,1,d${p},${p < 3 ? 'm' : 'f'},${0.8 + p * 0.05 + k * 0.001}\n`;
+  const rows = parseCsv(csv);
+  assert.equal(rows.length, 15);
+  const r = calibrate(rows, ['browGap']).browGap;
+  assert.equal(r.all.n, 5);
+  assert.equal(r.m.n, 3);
+  assert.ok(r.repeat.icc > 0.9);
+});

@@ -8,6 +8,8 @@ import { josa } from './lib/josa.js';
 import { buildGraph } from './graph.js';
 import { buildFaceChart } from './chart.js';
 import { detect, loadLandmarker, foreheadOf } from './face.js';
+import { buildPayload, sendPayload, ageBandOf, AGE_BANDS } from './lib/contribute.js';
+import { COLLECT_URL } from './config.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -320,6 +322,7 @@ function renderResult() {
     </ul>
     <p class="fine">이 풀이는 『增補麻衣相法全編』(陸位崇 編)과 『相理衡眞』 권3(陳釗 著)의 전통 해석을 옮긴 것이며, 과학적 예측이 아닙니다. 길·흉의 경계는 측정 분포로 정한 추정값이에요.</p>`;
 
+  renderContribute();
   show('step-result');
   // 관상 × 사주 연결은 보류 — ?all 에서만
   $('#saju-unlock').hidden = !SHOW_ALL || !!state.profile;
@@ -329,6 +332,43 @@ function renderResult() {
     for (const id of ['premium', 'place', 'friends']) $(`#${id}`).hidden = true;
   }
 }
+
+// ── 보정용 측정값 기여 (docs/데이터-수집.md) ──
+$('#age-band').insertAdjacentHTML('beforeend', AGE_BANDS.map((b) => `<option>${b}</option>`).join(''));
+$('#agree-contribute').addEventListener('change', (e) => {
+  $('#btn-contribute').disabled = !e.target.checked;
+});
+function deviceId() {
+  let id = store.get('device');
+  if (!id) {
+    id = crypto.randomUUID();
+    store.set('device', id);
+  }
+  return id;
+}
+function renderContribute() {
+  $('#contribute').hidden = !COLLECT_URL;
+  if (!COLLECT_URL) return;
+  if (!$('#age-band').value) $('#age-band').value = ageBandOf(state.birthYear);
+  const sent = state.face.sent;
+  $('#contribute-status').textContent = sent ? '이 측정값은 이미 보냈어요. 고마워요! 다시 찍어서 보내 주시면 측정이 얼마나 일정한지 확인하는 데 쓰여요.' : '';
+  $('#btn-contribute').hidden = !!sent;
+}
+$('#btn-contribute').addEventListener('click', async () => {
+  const btn = $('#btn-contribute');
+  btn.disabled = true;
+  $('#contribute-status').textContent = '보내는 중…';
+  try {
+    const payload = buildPayload({ ...state.face, gender: state.gender, ageBand: $('#age-band').value, device: deviceId() });
+    await sendPayload(COLLECT_URL, payload);
+    state.face.sent = true;
+    store.set('face', state.face);
+    renderContribute();
+  } catch {
+    $('#contribute-status').textContent = '보내지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.';
+    btn.disabled = false;
+  }
+});
 
 // ── 관상도 ──
 let chartMode = 'palace';

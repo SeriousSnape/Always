@@ -280,3 +280,7 @@ blockquote { margin: 12px 0; padding: 10px 12px; background: var(--bg); border-r
 .rel li { font-size: 14px; padding: 8px 10px; background: var(--bg); border-radius: 10px; }
 .unread-list { padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
 .flow li.flow-unread { opacity: 0.75; }
+
+/* 측정값 기여 */
+.contribute { border: 2px dashed var(--gold); }
+.fine-list { padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
