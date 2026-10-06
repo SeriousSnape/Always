@@ -72,7 +72,7 @@ function render() {
   const secs = brief.sections.map((spec) => ({ spec, n: NARRATIVE.sections.find((s) => s.key === spec.key) }));
   const palaceChips = reading.palaces.filter((p) => p.grade !== 'unread' && p.key !== 'sangmo');
   document.querySelector('#app').innerHTML = `
-    <p class="r-mock">결과 화면 시안 · 얼굴 수치는 시험용 값, 해설은 예시</p>
+    <p class="r-mock">결과 화면 시안 · 본인 사진 5장 평균 판정 · 해설은 예시(AI 아님)</p>
     <header class="r-top">
       <p class="eyebrow">麻衣相法 · 相理衡眞 정밀 관상</p>
       <h1 class="r-name">${esc(SAMPLE.name)}님의 관상</h1>
