@@ -176,7 +176,8 @@ $('#file').addEventListener('change', async (e) => {
   stopCamera();
   status('관상을 보는 중…');
   try {
-    state.photoGps = readExifGps(await file.arrayBuffer());
+    // 사진 위치(EXIF)는 잠가 둔 '이 자리' 기능(?all)에서만 읽는다
+    state.photoGps = SHOW_ALL ? readExifGps(await file.arrayBuffer()) : null;
     const img = await createImageBitmap(file, { imageOrientation: 'from-image' });
     const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
     canvas.width = Math.round(img.width * scale);
@@ -230,7 +231,9 @@ const chip = (grade) => `<span class="chip chip-${GRADE[grade].tone}">${GRADE[gr
 const conf = (c) => (c === 'B' ? '<span class="conf" title="깊이 추정값을 써서 참고용이에요">참고</span>' : '');
 const refsHtml = (refs) =>
   refs.length
-    ? `<ul class="refs">${refs.map((r) => `<li><q lang="zh-Hant">${r.q}</q><cite>${r.s}</cite><span>${r.t}</span></li>`).join('')}</ul>`
+    ? `<ul class="refs">${refs
+        .map((r) => `<li><q lang="zh-Hant">${r.q}</q><cite>${r.s}</cite><span>${r.t}</span>${r.rest ? `<small class="rest">${r.rest}</small>` : ''}</li>`)
+        .join('')}</ul>`
     : '';
 const noteHtml = (n) => (n ? `<p class="fine">${n}</p>` : '');
 const judgeHtml = (j) => `<p class="look">${j.look}</p>${refsHtml(j.refs)}${noteHtml(j.note)}`;

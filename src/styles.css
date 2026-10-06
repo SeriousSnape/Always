@@ -284,3 +284,6 @@ blockquote { margin: 12px 0; padding: 10px 12px; background: var(--bg); border-r
 /* 측정값 기여 */
 .contribute { border: 2px dashed var(--gold); }
 .fine-list { padding-left: 18px; font-size: 14px; display: grid; gap: 4px; }
+
+.refs .rest { display: block; margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: var(--card); color: var(--sub); font-size: 13px; line-height: 1.5; }
+.refs .rest::before { content: '측정하지 못한 부분 · '; font-weight: 700; color: var(--gold); }

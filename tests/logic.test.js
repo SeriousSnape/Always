@@ -248,3 +248,18 @@ test('보정 계산: 기기별 평균, 남녀 분리, 반복성', async () => {
   assert.equal(r.m.n, 3);
   assert.ok(r.repeat.icc > 0.9);
 });
+
+test('같은 눈썹을 보수관·형제궁이 각자 자기 원문으로 판정, 측정 못 한 조건은 설명', async () => {
+  const r = await import('../src/lib/reading.js');
+  const res = r.readFace({ ...avg(), browEye: 0.39, browEyeL: 0.39, browEyeR: 0.39 });
+  const hy = res.palaces.find((p) => p.key === 'hyungje');
+  const bo = res.wuguan.find((w) => w.key === 'bosu');
+  assert.equal(hy.grade, 'bad');
+  assert.match(hy.refs[0].q, /塞眼/);
+  assert.ok(!bo.refs.some((x) => /塞眼/.test(x.q)), '보수관이 형제궁 원문을 빌려 쓰지 않음');
+  const ji = r.readFace({ ...avg(), bridgeDepth: 0.2 }).palaces.find((p) => p.key === 'jilaek');
+  const ref = ji.refs.find((x) => /山根連鼻梁/.test(x.q));
+  assert.doesNotMatch(ref.q, /與額平/); // 재지 않은 조건은 인용하지 않고
+  assert.match(ref.rest, /與額平/); // 설명으로 돌린다
+  assert.match(ref.rest, /정밀 관상/);
+});
