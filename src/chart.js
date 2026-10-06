@@ -2,7 +2,7 @@
 // 그 위에 십이궁 또는 유년운기 자리를 표시한다. 랜드마크 좌표나 사진은 쓰지 않는다.
 import { BASE } from './lib/physiognomy.js';
 
-const COLOR = {
+export const COLOR = {
   paper: '#f4ecdc',
   ink: '#2a2019',
   faint: '#8c7b64',
@@ -68,7 +68,7 @@ function smoothClosed(pts) {
   return `${d} Z`;
 }
 
-function drawFace(g) {
+export function drawFace(g) {
   const { cx, W, yHair, browY, noseBaseY, chinY, eW, eyeGap, eyeH, eyeY, tilt, browIn, browLen, fw, jw, nw, mw, lipTopY, lip, mouthY } = g;
   const cheekY = eyeY + (noseBaseY - eyeY) * 0.45;
   const jawY = mouthY + (chinY - mouthY) * 0.25;

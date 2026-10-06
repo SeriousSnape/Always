@@ -1,7 +1,7 @@
 // 유료 결과 화면 시안 — 예시 인물(src/sample) 판정 + 예시 해설로 그린다.
 import { readFace, yearlyFlow, zoneGrades } from './lib/reading.js';
 import { buildBrief, SECTIONS } from './lib/narrative.js';
-import { buildFaceChart } from './chart.js';
+import { buildHighlight, zoneRegion } from './highlight.js';
 import { SAMPLE } from './sample/me.js';
 import NARRATIVE from './sample/narrative.json';
 
@@ -16,25 +16,6 @@ const G = { good: '길', mid: '평', bad: '흉' };
 const chip = (g, text) => `<span class="r-chip ${g}">${esc(text)} <b>${G[g]}</b></span>`;
 const paras = (body) => body.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
 
-let chartMode = 'palace';
-const chart = () =>
-  buildFaceChart({
-    metrics: SAMPLE.metrics,
-    mode: chartMode,
-    palaces: reading.palaces,
-    zones: zoneGrades(SAMPLE.metrics, opts),
-    now: { year: SAMPLE.thisYear, age },
-    forehead: SAMPLE.forehead,
-  });
-
-function quoteList(spec, quotes) {
-  const all = spec.facts.flatMap((f) => f.quotes);
-  return quotes
-    .map((q) => all.find((x) => x.q === q))
-    .filter(Boolean)
-    .map((x) => `<li><span class="r-han">${esc(x.q)}</span><span class="r-src">${esc(x.s)}</span><span class="r-tr">${esc(x.t)}</span></li>`)
-    .join('');
-}
 
 function yearsStrip(spec) {
   return `<ol class="r-years">${spec.years
@@ -49,6 +30,30 @@ function yearsStrip(spec) {
     .join('')}</ol>`;
 }
 
+// 부위 짧은 이름 (그림 이름표)
+const SHORT = {
+  myung: '미간', jaebaek: '코', hyungje: '눈썹', jeontaek: '눈', namnyeo: '눈 밑', nobok: '턱 끝', cheocheop: '눈꼬리',
+  jilaek: '콧대 뿌리', cheoni: '이마 양옆', gwanrok: '이마', bokdeok: '이마·턱', bumo: '이마 위', namak: '이마',
+  dongseo: '광대', jungak: '코', bukak: '턱', bosu: '눈썹', gamchal: '눈', simbyeon: '코', chulnap: '입', injung: '인중',
+};
+
+let hlId = 0;
+function pictureOf(spec) {
+  const marks = [];
+  const seen = new Set();
+  for (const f of spec.facts) {
+    if (!f.grade) continue;
+    const region = f.id.startsWith('zone:') ? zoneRegion(f.part.split(': ')[1] ?? '') : f.id;
+    if (!region || seen.has(region) || region === 'sangmo') continue;
+    seen.add(region);
+    marks.push({ region, grade: f.grade, label: SHORT[f.id] ?? (f.id.startsWith('zone:') ? f.part.split(' ')[0] : null) });
+  }
+  if (!marks.length || spec.key === 'gomin') return '';
+  // 큰 띠(삼정·상모)를 먼저 깔고 작은 자리를 위에
+  marks.sort((a, b) => (['thirds', 'sangmo'].includes(b.region) ? 1 : 0) - (['thirds', 'sangmo'].includes(a.region) ? 1 : 0));
+  return `<figure class="r-pic">${buildHighlight(SAMPLE.metrics, marks, { clipId: `hl${hlId++}` }).svg}</figure>`;
+}
+
 function section(spec, n, i) {
   const chips = spec.facts.filter((f) => f.grade && !f.id.startsWith('zone:'));
   const uniq = [...new Map(chips.map((f) => [f.id, f])).values()];
@@ -60,19 +65,29 @@ function section(spec, n, i) {
       <span class="r-head">${n.title === label ? "" : `<small>${esc(label)}</small>`}<strong>${esc(n.title)}</strong></span>
     </summary>
     <div class="r-body">
+      ${spec.key === 'olhae' ? yearsStrip(spec) : pictureOf(spec)}
       ${showChips && uniq.length ? `<div class="r-chips">${uniq.map((f) => chip(f.grade, f.part)).join('')}</div>` : ''}
-      ${spec.key === 'olhae' ? yearsStrip(spec) : ''}
       ${paras(n.body)}
-      ${n.quotes.length ? `<details class="r-quotes"><summary>원문 근거 ${n.quotes.length}</summary><ul>${quoteList(spec, n.quotes)}</ul></details>` : ''}
     </div>
   </details>`;
+}
+
+// 맨 위 얼굴 지도: 모든 자리를 길흉 색으로, 좋은 자리 넷과 조심할 자리에 이름표
+const MAP_KEYS = ['myung', 'jaebaek', 'hyungje', 'jeontaek', 'namnyeo', 'cheocheop', 'jilaek', 'cheoni', 'gwanrok', 'bumo', 'dongseo', 'chulnap', 'injung', 'nobok'];
+const MAP_LABEL = { myung: '미간 · 운명', jaebaek: '코 · 재물', hyungje: '눈썹 · 형제', jeontaek: '눈 · 집', namnyeo: '눈 밑 · 자녀', cheocheop: '눈꼬리 · 배우자', jilaek: '콧대 뿌리 · 건강', cheoni: '이마 옆 · 이동', gwanrok: '이마 · 명예', bumo: '이마 위 · 부모', dongseo: '광대 · 권세', chulnap: '입 · 녹봉', injung: '인중 · 수명', nobok: '턱 · 사람' };
+function faceMap() {
+  const r = reading.results;
+  const marks = MAP_KEYS.filter((k) => r[k] && r[k].grade !== 'unread').map((k) => ({ region: k, grade: r[k].grade }));
+  const tagged = new Set([...marks.filter((m) => m.grade === 'bad').map((m) => m.region), ...['jaebaek', 'myung', 'nobok', 'chulnap', 'cheoni'].filter((k) => r[k]?.grade === 'good')].slice(0, 6));
+  for (const m of marks) if (tagged.has(m.region)) m.label = MAP_LABEL[m.region];
+  return buildHighlight(SAMPLE.metrics, marks, { clipId: 'map' }).svg;
 }
 
 function render() {
   const secs = brief.sections.map((spec) => ({ spec, n: NARRATIVE.sections.find((s) => s.key === spec.key) }));
   const palaceChips = reading.palaces.filter((p) => p.grade !== 'unread' && p.key !== 'sangmo');
   document.querySelector('#app').innerHTML = `
-    <p class="r-mock">결과 화면 시안 · 본인 사진 5장 평균 판정 · 해설은 예시(AI 아님)</p>
+    <p class="r-mock">시안 · 본인 사진 5장 평균 · 해설은 예시</p>
     <header class="r-top">
       <p class="eyebrow">麻衣相法 · 相理衡眞 정밀 관상</p>
       <h1 class="r-name">${esc(SAMPLE.name)}님의 관상</h1>
@@ -80,11 +95,9 @@ function render() {
     </header>
 
     <section class="card r-chart">
-      <div class="seg" role="tablist">
-        <button data-mode="palace" class="${chartMode === 'palace' ? 'on' : ''}">십이궁</button>
-        <button data-mode="yearly" class="${chartMode === 'yearly' ? 'on' : ''}">나이별 운기</button>
-      </div>
-      <div class="r-svg">${chart().svg}</div>
+      <p class="r-headline">${esc(NARRATIVE.sections[0].title)}</p>
+      <div class="r-svg">${faceMap()}</div>
+      <p class="r-legend"><span class="good">● 복이 붙은 자리</span><span class="bad">● 조심할 자리</span><span class="mid">● 보통</span></p>
       <details class="r-table">
         <summary>관상도 자세히 보기</summary>
         <div class="r-chips">${palaceChips.map((p) => chip(p.grade, `${p.name} · ${p.domain}`)).join('')}</div>
@@ -112,12 +125,6 @@ function render() {
     </div>
     <p class="fine">『增補麻衣相法全編』·『相理衡眞』 권3의 전통 해석을 옮긴 풀이예요. 재미로 읽어 주세요.</p>
   `;
-  document.querySelectorAll('.seg button').forEach((b) =>
-    b.addEventListener('click', () => {
-      chartMode = b.dataset.mode;
-      render();
-    }),
-  );
   document.querySelectorAll('.r-toc a').forEach((a) =>
     a.addEventListener('click', () => {
       document.querySelector(a.getAttribute('href')).open = true;

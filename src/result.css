@@ -156,3 +156,10 @@
 }
 .r-actions button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 main { padding-bottom: 32px; }
+
+.r-headline { font-family: 'Noto Serif KR', serif; font-weight: 900; font-size: 22px; text-align: center; margin: 4px 0 0; text-wrap: balance; }
+.r-legend { display: flex; justify-content: center; gap: 12px; font-size: 12.5px; margin: 4px 0 0; color: var(--sub); }
+.r-legend .good { color: #c08a22; } .r-legend .bad { color: #c0452f; }
+.r-pic { margin: 0 auto 4px; max-width: 300px; background: #f4ecdc; border-radius: 14px; padding: 4px; }
+.r-pic svg { display: block; width: 100%; height: auto; }
+.r-chart .r-svg { background: #f4ecdc; border-radius: 14px; margin-top: 8px; }
