@@ -276,7 +276,7 @@ export function buildFaceChart({ metrics, mode, palaces, zones, now, forehead = 
     <text x="${g.cx + g.W / 2 + 22}" y="${(g.yHair + g.browY) / 2}" ${SANS} font-size="10" fill="${COLOR.faint}">상정</text>
     <text x="${g.cx + g.W / 2 + 22}" y="${(g.browY + g.noseBaseY) / 2}" ${SANS} font-size="10" fill="${COLOR.faint}">중정</text>
     <text x="${g.cx + g.W / 2 + 22}" y="${(g.noseBaseY + g.chinY) / 2}" ${SANS} font-size="10" fill="${COLOR.faint}">하정</text>`;
-  const foot = `<text x="${Wv / 2}" y="${Hv - 14}" ${SANS} font-size="10" fill="${COLOR.faint}" text-anchor="middle">길 <tspan fill="${COLOR.good}">●</tspan>  평 <tspan fill="${COLOR.mid}">●</tspan>  흉 <tspan fill="${COLOR.bad}">●</tspan>  사진으로 보지 않음 <tspan fill="${COLOR.unread}">●</tspan> · 麻衣相法·相理衡眞</text>`;
+  const foot = `<text x="${Wv / 2}" y="${Hv - 14}" ${SANS} font-size="10" fill="${COLOR.faint}" text-anchor="middle">길 <tspan fill="${COLOR.good}">●</tspan>  평 <tspan fill="${COLOR.mid}">●</tspan>  흉 <tspan fill="${COLOR.bad}">●</tspan> · 麻衣相法·相理衡眞</text>`;
 
   return {
     width: Wv,

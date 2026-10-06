@@ -228,14 +228,14 @@ function drawLandmarks(lm, w, h) {
 // ── 2. 관상 결과 (docs/관상-기준.md) ──
 const elBadge = (el) => `<span class="el el-${el}">${ELEMENTS[el]}${ELEMENTS_HANJA[el]}</span>`;
 const chip = (grade) => `<span class="chip chip-${GRADE[grade].tone}">${GRADE[grade].short}</span>`;
-const conf = (c) => (c === 'B' ? '<span class="conf" title="깊이 추정값을 써서 참고용이에요">참고</span>' : '');
+const conf = () => '';
 const refsHtml = (refs) =>
   refs.length
     ? `<ul class="refs">${refs
-        .map((r) => `<li><q lang="zh-Hant">${r.q}</q><cite>${r.s}</cite><span>${r.t}</span>${r.rest ? `<small class="rest">${r.rest}</small>` : ''}</li>`)
+        .map((r) => `<li><q lang="zh-Hant">${r.q}</q><cite>${r.s}</cite><span>${r.t}</span></li>`)
         .join('')}</ul>`
     : '';
-const noteHtml = (n) => (n ? `<p class="fine">${n}</p>` : '');
+const noteHtml = () => ''; // 무료 결과에는 측정하지 못한 부분에 대한 설명을 쓰지 않는다
 const judgeHtml = (j) => `<p class="look">${j.look}</p>${refsHtml(j.refs)}${noteHtml(j.note)}`;
 const subj = (name, domain) => `${name}(${domain})${josa(domain, '이/가').slice(domain.length)}`;
 const opts = () => ({ forehead: state.face.forehead ?? null, gender: state.gender });
@@ -258,13 +258,13 @@ function renderResult() {
     <p class="eyebrow">총평 · 達磨相訣 第四法·第五法</p>
     <h2 class="headline">${sum.best ? `${subj(sum.best.name, sum.best.domain)} 가장 좋은 얼굴` : '크게 기운 자리 없이 고른 얼굴'}</h2>
     <p class="sub">${sum.worst ? `약한 자리는 ${sum.worst.name}(${sum.worst.domain})` : '흉으로 판정된 궁이 없어요'}</p>
-    <ul class="pillars4">${sum.pillars.map((p) => `<li><b>${p.q}</b><span>${p.name}</span>${chip(p.grade)}</li>`).join('')}</ul>
+    <ul class="pillars4">${sum.pillars.filter((p) => p.grade !== 'unread').map((p) => `<li><b>${p.q}</b><span>${p.name}</span>${chip(p.grade)}</li>`).join('')}</ul>
     ${sum.best ? `<blockquote><q lang="zh-Hant">${sum.best.refs[0].q}</q> <cite>${sum.best.refs[0].s}</cite><br>${sum.best.refs[0].t}</blockquote>` : ''}
     <ul class="palace-grid" aria-label="십이궁 한눈에 보기">
       ${res.palaces.map((p) => `<li><a href="#palace-${p.key}"><span>${p.name}</span><small>${p.domain}</small>${chip(p.grade)}</a></li>`).join('')}
     </ul>
     ${refsHtml(sum.method)}
-    <p class="fine">원전은 얼굴 판단의 절반을 눈, 그중에서도 눈빛(神)에 둡니다. 사진으로는 눈의 형상만 봤고, 신(神)·기색·소리는 보지 않았어요.</p>`;
+`;
 
   renderYearly();
   renderChart();
@@ -288,7 +288,7 @@ function renderResult() {
   $('#wuguan').innerHTML = `
     <h2>오관(五官)</h2>
     <p class="hint">${res.wuguanSummary.text} ${refsHtml(res.wuguanSummary.refs)}</p>
-    ${res.wuguan.map((w) => `<article class="palace"><header><h3>${w.name} <small>${w.hanja} · ${w.area}</small></h3>${chip(w.grade)}</header>${judgeHtml(w)}</article>`).join('')}
+    ${res.wuguan.filter((w) => w.grade !== 'unread').map((w) => `<article class="palace"><header><h3>${w.name} <small>${w.hanja} · ${w.area}</small></h3>${chip(w.grade)}</header>${judgeHtml(w)}</article>`).join('')}
     <article class="palace"><header><h3>인중 <small>人中</small></h3>${chip(res.injung.grade)}</header>${judgeHtml(res.injung)}</article>`;
 
   $('#palaces').innerHTML = `
@@ -315,15 +315,7 @@ function renderResult() {
       )
       .join('')}`;
 
-  $('#unread').innerHTML = `
-    <h2>사진으로 보지 않은 것</h2>
-    <ul class="unread-list">
-      <li><b>기색(氣色)</b> — 원전도 「最爲難審 須於清明 昧爽精氣不亂之時觀之」(麻衣 p162)라 했어요. 조명·화장에 따라 바뀝니다.</li>
-      <li><b>신(神)·눈빛</b> — 「相主神 … 神主眼」(麻衣 p143~144). 정지 사진으로 판단할 수 없어요.</li>
-      <li><b>소리(聲)</b>, <b>귀</b>, <b>점·주름·흉터</b>, <b>손·발·혀·이</b></li>
-      <li><b>오행형(五行形)</b> — 몸통·체격과 기색까지 함께 봐야 해서(「先定其形 然後隨其色」, 麻衣 p147) 얼굴 사진만으로는 원전대로 정할 수 없어요.</li>
-    </ul>
-    <p class="fine">이 풀이는 『增補麻衣相法全編』(陸位崇 編)과 『相理衡眞』 권3(陳釗 著)의 전통 해석을 옮긴 것이며, 과학적 예측이 아닙니다. 길·흉의 경계는 측정 분포로 정한 추정값이에요.</p>`;
+  $('#unread').innerHTML = `<p class="fine">『增補麻衣相法全編』·『相理衡眞』 권3의 전통 해석을 옮긴 풀이예요.</p>`;
 
   renderContribute();
   show('step-result');
@@ -427,14 +419,12 @@ function renderYearly() {
   }
   const flow = (state.flow = yearlyFlow(state.face.metrics, state.birthYear, opts()));
   const now = flow[0];
-  const sideNote = now.paired
-    ? `<p class="fine">${state.gender === 'm' ? '남자는 왼쪽' : state.gender === 'f' ? '여자는 오른쪽' : '성별을 고르지 않아 양쪽 평균'}을 봤어요(男左女右, 麻衣 p29).</p>`
-    : '';
+  const sideNote = '';
   box.innerHTML = `
     <p class="eyebrow">유년운기 · ${now.year}년 · ${now.age}세(세는 나이)</p>
     <h2>올해는 <em>${now.area}</em>의 해 ${chip(now.grade)}</h2>
     <p class="hint">${now.range}는 이 자리가 운을 맡아요.</p>
-    ${now.grade === 'unread' ? `<p>${now.look}</p>` : judgeHtml(now)}
+    ${now.grade === 'unread' ? '' : judgeHtml(now)}
     ${sideNote}
     ${refsHtml(now.grade === 'good' ? [ZONE_RULE[0]] : now.grade === 'bad' ? [ZONE_RULE[1]] : [])}
     <ol class="flow">${flow

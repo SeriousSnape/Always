@@ -410,7 +410,7 @@ export function readFace(m, { forehead = null, gender = null } = {}) {
     wuguanSummary: {
       formed,
       refs: [R('一官成 十年之貴顯 / 五官俱成 其貴老終', '麻衣 p40', '한 관이 이루어지면 십 년 귀하게 드러나고, 오관이 모두 이루어지면 늙도록 귀하다.')],
-      text: `귀를 뺀 네 관 중 ${formed}개가 이루어졌다.`,
+      text: `네 관 중 ${formed}개가 이루어졌다.`,
     },
     injung: r.injung,
     relations: relationsOf(r),
