@@ -181,9 +181,11 @@ export const BASE = {
   browOverL: [0.49, 0.12],
   browEyeR: [0.55, 0.1],
   browEyeL: [0.55, 0.1],
-  eyeAspect: [3.87, 0.45],
-  eyeAspectR: [3.87, 0.45],
-  eyeAspectL: [3.87, 0.45],
+  // 눈 가로÷세로: 표준 모델(3.87)은 눈을 반쯤 감은 형태라 실제 뜬 눈과 맞지 않는다.
+  // 임시로 인체 계측 안검열(폭 28~30mm ÷ 높이 9~10mm ≈ 3.0)을 쓴다. 보정 데이터로 바꿀 것.
+  eyeAspect: [3.0, 0.35],
+  eyeAspectR: [3.0, 0.35],
+  eyeAspectL: [3.0, 0.35],
   eyeTiltR: [0.03, 0.05],
   eyeTiltL: [0.03, 0.05],
   mouthCorner: [-0.015, 0.03],

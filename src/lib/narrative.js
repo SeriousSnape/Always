@@ -45,7 +45,7 @@ const factOf = (id, j) => ({
  * @param {Array} yearly yearlyFlow() 결과
  * @param {{birthYear:number, gender:'m'|'f'|null, worry?:string, thisYear:number}} who
  */
-export function buildBrief(reading, yearly, who) {
+export function buildBrief(reading, yearly, who, { eye = null } = {}) {
   const all = {};
   for (const [k, j] of Object.entries(reading.results)) {
     if (j.grade !== 'unread') all[k] = factOf(k, j);
@@ -60,14 +60,24 @@ export function buildBrief(reading, yearly, who) {
     id: 'method', part: '달마상법 총론', grade: null, look: '얼굴 부위의 무게를 나누는 법',
     quotes: reading.summary.method.map(({ q, s, t }) => ({ q, s, t })),
   };
+  // 닮은 동물형 눈(길한 눈만 후보) — 첫머리 재료
+  if (eye) {
+    all.eye = {
+      id: 'eye', part: `닮은 눈: ${eye.name}(${eye.hanja}, ${eye.tag})`, grade: 'good', look: `${eye.shapeKo}. 측정: ${eye.traits.join(', ')}`,
+      quotes: [
+        { q: eye.shape, s: eye.page, t: eye.shapeKo },
+        { q: eye.verse, s: eye.page, t: eye.verseKo },
+      ],
+    };
+  }
   const judged = Object.values(all).filter((f) => f.grade);
   const pick = (spec) => {
     if (spec === 'bad') return [...judged.filter((f) => f.grade === 'bad'), all.method];
-    if (spec === 'good') return judged.filter((f) => f.grade === 'good');
-    if (spec === 'all') return judged;
+    if (spec === 'good') return judged.filter((f) => f.grade === 'good' && f.id !== 'eye');
+    if (spec === 'all') return judged.filter((f) => f.id !== 'eye');
     if (spec === 'summary') {
       const s = reading.summary;
-      return [...judged.filter((f) => f.id === s.best?.key || f.id === s.worst?.key || f.id === 'gamchal' || f.id === 'jaebaek'), all.method];
+      return [...judged.filter((f) => f.id === 'eye' || f.id === s.best?.key || f.id === s.worst?.key || f.id === 'gamchal' || f.id === 'jaebaek'), all.method];
     }
     if (spec === 'yearly') return [];
     return spec.map((k) => all[k]).filter(Boolean);
@@ -115,6 +125,7 @@ export const SYSTEM_PROMPT = `너는 관상 해설가다. 『增補麻衣相法�
 칸마다 쓰는 것
 - title: 그 칸의 핵심을 한 줄로(30자 이내). 궁금해서 펼치고 싶게. fixedTitle이 있으면 그대로 쓴다.
 - body: 그 칸의 facts만 가지고 쓴다(120~500자, sseunsori·gomin은 1000자까지). grade가 null인 fact는 판정이 아니라 총론 근거다. facts에 없는 부위·판정은 말하지 않는다. 측정하지 않은 것(귀, 눈빛, 목소리, 기색 등)이 있다는 말도 하지 않는다.
+- eye fact(닮은 동물형 눈)가 있으면 hanmadi는 그 눈으로 시작한다. 원전의 길한 뜻만 골라 둔 것이니 가장 긍정적으로, 자랑하고 싶게 풀어 준다.
 - quotes: 그 칸 facts의 quotes[].q 가운데 본문에서 다룬 것을 글자 그대로 1~2개. 없으면 빈 배열.
 
 지킬 것
@@ -180,7 +191,8 @@ export function checkNarrative(output, brief) {
   for (const k of got) if (!want.includes(k)) add(k, '없어야 할 칸이다');
 
   const allQ = brief.sections.flatMap((s) => s.facts.flatMap((f) => f.quotes.map((q) => q.q)));
-  const hanjaOk = allQ.join('|') + '|' + Object.values(NAMES).join('|');
+  const parts = brief.sections.flatMap((s) => s.facts.map((f) => f.part));
+  const hanjaOk = [...allQ, ...parts, ...Object.values(NAMES)].join('|');
 
   for (const sec of output?.sections ?? []) {
     const spec = brief.sections.find((s) => s.key === sec.key);

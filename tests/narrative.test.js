@@ -4,9 +4,11 @@ import { readFileSync } from 'node:fs';
 import { readFace, yearlyFlow } from '../src/lib/reading.js';
 import { buildBrief, checkNarrative } from '../src/lib/narrative.js';
 import { SAMPLE } from '../src/sample/me.js';
+import { eyeTypeOf } from '../src/lib/eyes.js';
 
 const opts = { forehead: SAMPLE.forehead, gender: SAMPLE.gender };
-const brief = buildBrief(readFace(SAMPLE.metrics, opts), yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear), SAMPLE);
+const eyeR = eyeTypeOf(SAMPLE.metrics);
+const brief = buildBrief(readFace(SAMPLE.metrics, opts), yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear), SAMPLE, { eye: { ...eyeR.best, traits: eyeR.traits } });
 const sample = JSON.parse(readFileSync(new URL('../src/sample/narrative.json', import.meta.url)));
 
 test('예시 해설은 출력 검사를 통과한다', () => {
@@ -55,4 +57,13 @@ test('쓴소리 칸에서 흉 직역을 빼거나 바꾸면 잡는다', () => {
 test('칸이 빠지거나 제목이 바뀌면 잡는다', () => {
   assert.match(tamper((o) => o.sections.pop()), /칸이 빠졌다/);
   assert.match(tamper((o) => (o.sections.find((x) => x.key === 'sseunsori').title = '조심할 점')), /제목은/);
+});
+
+test('닮은 눈은 길한 뜻의 눈 가운데서만 고른다', () => {
+  const shapes = [[2, 2, 2], [-2, -2, -2], [0, 0, 0], [2, -2, 0], [-2, 2, -2]];
+  for (const [a, b, c] of shapes) {
+    const m = { ...SAMPLE.metrics, eyeAspect: 3 + a * 0.35, eyeSize: 0.17 + b * 0.015, eyeTilt: 0.03 + c * 0.05 };
+    const r = eyeTypeOf(m);
+    assert.ok(['long', 'bong', 'seobong', 'sang', 'u', 'gwi', 'sa'].includes(r.best.key));
+  }
 });

@@ -2,13 +2,16 @@
 import { readFace, yearlyFlow, zoneGrades } from './lib/reading.js';
 import { buildBrief, SECTIONS } from './lib/narrative.js';
 import { buildHighlight, zoneRegion } from './highlight.js';
+import { eyeTypeOf } from './lib/eyes.js';
 import { SAMPLE } from './sample/me.js';
 import NARRATIVE from './sample/narrative.json';
 
 const opts = { forehead: SAMPLE.forehead, gender: SAMPLE.gender };
 const reading = readFace(SAMPLE.metrics, opts);
 const yearly = yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear);
-const brief = buildBrief(reading, yearly, SAMPLE);
+const eyeR = eyeTypeOf(SAMPLE.metrics);
+const eye = { ...eyeR.best, traits: eyeR.traits };
+const brief = buildBrief(reading, yearly, SAMPLE, { eye });
 const age = SAMPLE.thisYear - SAMPLE.birthYear + 1;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -93,6 +96,20 @@ function render() {
       <h1 class="r-name">${esc(SAMPLE.name)}님의 관상</h1>
       <p class="r-meta">${SAMPLE.birthYear}년생 · 남 · 세는 나이 ${age}세 · 이마 드러냄 ✓</p>
     </header>
+
+    <section class="card r-eye">
+      <p class="r-eye-kicker">${esc(SAMPLE.name)}님은</p>
+      <h2 class="r-eye-name">${esc(eye.name)}<span>${eye.hanja}</span></h2>
+      <p class="r-eye-tag">${eye.tag} · ${esc(eye.shapeKo)}</p>
+      <figure class="r-eye-pic">
+        <img src="eyes/${eye.key}.jpg" alt="『마의상법』의 ${esc(eye.name)} 그림" />
+        <figcaption>『마의상법』 원전 그림 · ${eye.hanja}</figcaption>
+      </figure>
+      <p class="r-eye-verse">“${esc(eye.verseKo)}”</p>
+      <p class="r-eye-reading">${esc(eye.reading)}</p>
+      <p class="r-eye-me">내 눈: ${eye.traits.map(esc).join(' · ')}</p>
+      <p class="r-eye-second">두 번째로 닮은 눈 · ${esc(eyeR.second.name)}</p>
+    </section>
 
     <section class="card r-chart">
       <p class="r-headline">${esc(NARRATIVE.sections[0].title)}</p>
