@@ -1,4 +1,4 @@
-// 구글 시트에 모인 측정값으로 판정 기준(BASE)을 다시 계산한다. scripts/calibrate.mjs 에서 쓴다.
+// Supabase에 모인 측정값으로 판정 기준(BASE)을 다시 계산한다. scripts/calibrate.mjs 에서 쓴다.
 
 /** 간단한 CSV 파서 (따옴표 지원) */
 export function parseCsv(text) {

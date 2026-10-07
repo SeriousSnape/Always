@@ -9,7 +9,7 @@ import { buildGraph } from './graph.js';
 import { buildFaceChart } from './chart.js';
 import { detect, loadLandmarker, foreheadOf } from './face.js';
 import { buildPayload, sendPayload, ageBandOf, AGE_BANDS } from './lib/contribute.js';
-import { COLLECT_URL } from './config.js';
+import { SUPABASE, COLLECT_ON } from './config.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -342,8 +342,8 @@ function deviceId() {
   return id;
 }
 function renderContribute() {
-  $('#contribute').hidden = !COLLECT_URL;
-  if (!COLLECT_URL) return;
+  $('#contribute').hidden = !COLLECT_ON;
+  if (!COLLECT_ON) return;
   if (!$('#age-band').value) $('#age-band').value = ageBandOf(state.birthYear);
   const sent = state.face.sent;
   $('#contribute-status').textContent = sent ? '이 측정값은 이미 보냈어요. 고마워요! 다시 찍어서 보내 주시면 측정이 얼마나 일정한지 확인하는 데 쓰여요.' : '';
@@ -355,7 +355,7 @@ $('#btn-contribute').addEventListener('click', async () => {
   $('#contribute-status').textContent = '보내는 중…';
   try {
     const payload = buildPayload({ ...state.face, gender: state.gender, ageBand: $('#age-band').value, device: deviceId() });
-    await sendPayload(COLLECT_URL, payload);
+    await sendPayload(SUPABASE, payload);
     state.face.sent = true;
     store.set('face', state.face);
     renderContribute();

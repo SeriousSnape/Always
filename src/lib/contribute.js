@@ -1,5 +1,6 @@
 // 보정용 측정값 기여 — 사진·얼굴 좌표는 보내지 않고 비율값과 성별·연령대만 보낸다.
-// 받는 쪽: apps-script/Code.gs (구글 Apps Script → 구글 시트). 열 순서는 양쪽이 같아야 한다.
+// 받는 쪽: Supabase 함수 submit_calibration (supabase/migrations/…_calibration.sql).
+// 지표는 이름:값 객체로 보내므로 지표가 늘어도 표 구조를 바꿀 필요가 없다.
 import { BASE } from './physiognomy.js';
 
 export const SCHEMA_VERSION = 2;
@@ -31,16 +32,22 @@ export function buildPayload({ metrics, forehead, gender, ageBand, device }) {
     ageBand: AGE_BANDS.includes(ageBand) ? ageBand : '',
     forehead: forehead?.status ?? '',
     thirds: forehead?.status === 'visible' ? [forehead.thirds.upper, forehead.thirds.middle, forehead.thirds.lower].map(round) : null,
-    metrics: METRIC_KEYS.map((k) => round(metrics[k])),
+    metrics: Object.fromEntries(METRIC_KEYS.map((k) => [k, round(metrics[k])])),
   };
 }
 
-/** Apps Script는 CORS 응답을 주지 않으므로 text/plain + no-cors로 보낸다(응답은 읽지 못함). */
-export async function sendPayload(url, payload) {
-  await fetch(url, {
+/**
+ * Supabase RPC로 보낸다. anon 키는 공개돼도 되는 키다(표는 직접 못 건드리고 이 함수만 부를 수 있다).
+ * @returns {Promise<{ok:boolean, error?:string}>}
+ */
+export async function sendPayload({ url, anonKey }, payload) {
+  const res = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/submit_calibration`, {
     method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+    body: JSON.stringify({ p: payload }),
   });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const out = await res.json();
+  if (!out?.ok) throw new Error(out?.error ?? 'unknown');
+  return out;
 }

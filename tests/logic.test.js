@@ -223,15 +223,16 @@ test('관상도: 원전 자리 표시, 이마가 가려지면 상정을 빗금 �
   assert.doesNotMatch(vis.svg, /상정 불명확/);
 });
 
-test('측정값 기여: 보내는 값에 사진·좌표 없음, Apps Script 열 순서 일치', async () => {
+test('측정값 기여: 보내는 값에 사진·좌표 없음, 지표는 이름:값', async () => {
   const { buildPayload, METRIC_KEYS, ageBandOf } = await import('../src/lib/contribute.js');
   const fs = await import('node:fs');
-  const gs = fs.readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
-  const keys = JSON.parse(gs.match(/var METRIC_KEYS = (\[.*?\]);/)[1]);
-  assert.deepEqual(keys, METRIC_KEYS);
+  const sql = fs.readdirSync(new URL('../supabase/migrations/', import.meta.url)).map((f) => fs.readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), 'utf8')).join('\n');
   const p = buildPayload({ metrics: avg(), forehead: { status: 'visible', thirds: { upper: 0.3, middle: 0.33, lower: 0.37 } }, gender: 'f', ageBand: '30대', device: 'abc' });
   assert.deepEqual(Object.keys(p).sort(), ['ageBand', 'device', 'forehead', 'gender', 'metrics', 'thirds', 'v']);
-  assert.equal(p.metrics.length, METRIC_KEYS.length);
+  assert.deepEqual(Object.keys(p.metrics), METRIC_KEYS);
+  assert.ok(METRIC_KEYS.every((k) => /^[A-Za-z0-9]{1,32}$/.test(k)), 'SQL 함수의 지표 이름 규칙');
+  assert.ok(METRIC_KEYS.length <= 100);
+  assert.match(sql, new RegExp(`\\(p->>'v'\\) is distinct from '${p.v}'`), 'SQL 함수 버전 일치');
   assert.equal(ageBandOf(1995, 2026), '30대');
   assert.equal(ageBandOf(null), '');
 });
