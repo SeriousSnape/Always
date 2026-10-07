@@ -45,10 +45,11 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PRICE: ${{ vars.PRICE || '990' }}
           ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS || 'https://serioussnape.github.io' }}
+          FREE_MODE: ${{ vars.FREE_MODE || 'true' }}
         run: |
           supabase secrets set --project-ref "$PROJECT_REF" \
-            TOSS_SECRET_KEY="$TOSS_SECRET_KEY" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
-            PRICE="$PRICE" ALLOWED_ORIGINS="$ALLOWED_ORIGINS"
+            TOSS_SECRET_KEY="${TOSS_SECRET_KEY:-unset}" ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+            PRICE="$PRICE" ALLOWED_ORIGINS="$ALLOWED_ORIGINS" FREE_MODE="$FREE_MODE"
       - name: 함수 배포
         if: steps.ready.outputs.go == 'true'
         run: supabase functions deploy --project-ref "$PROJECT_REF"

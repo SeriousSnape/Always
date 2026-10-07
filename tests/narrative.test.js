@@ -140,3 +140,14 @@ test('흉한 기색에는 신(神) 구절이 함께 실려야 한다', () => {
   const why = checkNarrative(out, br).problems.filter((p) => p.key === 'gisaek').map((p) => p.why).join('\n');
   assert.match(why, /신\(神\) 구절/);
 });
+
+test('서버 연결 전 원문 풀이: 모든 칸을 채우고, 흉 직역을 그대로 싣는다', async () => {
+  const { localNarrative } = await import('../src/lib/localNarrative.js');
+  const { SECTIONS } = await import('../src/lib/narrative.js');
+  const n = localNarrative(brief, Object.fromEntries(SECTIONS.map((s) => [s.key, s.label])));
+  assert.equal(n.sections.length, brief.sections.length);
+  for (const s of n.sections) assert.ok(s.title && s.body.length > 10, s.key);
+  const ss = brief.sections.find((s) => s.key === 'sseunsori');
+  const body = n.sections.find((s) => s.key === 'sseunsori').body;
+  for (const f of ss.facts.filter((f) => f.grade === 'bad')) for (const q of f.quotes) assert.ok(body.includes(q.t));
+});

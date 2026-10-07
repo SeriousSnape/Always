@@ -9,7 +9,7 @@ import { buildGraph } from './graph.js';
 import { buildFaceChart } from './chart.js';
 import { detect, loadLandmarker, foreheadOf, complexionOf } from './face.js';
 import { buildPayload, sendPayload, ageBandOf, AGE_BANDS } from './lib/contribute.js';
-import { SUPABASE, COLLECT_ON, PAID_ON } from './config.js';
+import { SUPABASE, COLLECT_ON, SERVER_ON } from './config.js';
 import { prepare } from './lib/prepare.js';
 import { createOrder } from './paid.js';
 
@@ -828,8 +828,8 @@ $('#btn-paid').addEventListener('click', async () => {
     forehead: state.face.forehead,
     complexion: state.face.complexion ?? null,
   };
-  if (!PAID_ON) {
-    // 서버·결제 연결 전: 결제 없이 내 판정으로 결과 화면 미리보기
+  if (!SERVER_ON) {
+    // 서버 연결 전: 기기 안에서 원문 풀이로
     try {
       localStorage.setItem('gs:demo', JSON.stringify(person));
     } catch {}
@@ -841,7 +841,7 @@ $('#btn-paid').addEventListener('click', async () => {
   const { brief } = prepare(person);
   const r = await createOrder(brief).catch(() => ({ error: 'network' }));
   if (r.error) {
-    $('#paid-status').textContent = `주문을 만들지 못했어요(${r.error}). 잠시 뒤 다시 눌러 주세요.`;
+    $('#paid-status').textContent = r.error === 'client_cap' || r.error === 'daily_cap' ? '오늘 무료 테스트 횟수를 다 썼어요. 내일 다시 해 주세요.' : `주문을 만들지 못했어요(${r.error}). 잠시 뒤 다시 눌러 주세요.`;
     btn.disabled = false;
     return;
   }
@@ -849,5 +849,7 @@ $('#btn-paid').addEventListener('click', async () => {
   try {
     localStorage.setItem(`gs:order:${r.orderId}`, JSON.stringify(person));
   } catch {}
-  location.href = `pay.html?order=${r.orderId}&token=${r.token}&amount=${r.amount}&name=${encodeURIComponent(r.orderName)}`;
+  // 무료 테스트 모드면 결제 없이 바로 결과로
+  if (r.free) location.href = `result.html?order=${r.orderId}&token=${r.token}`;
+  else location.href = `pay.html?order=${r.orderId}&token=${r.token}&amount=${r.amount}&name=${encodeURIComponent(r.orderName)}`;
 });

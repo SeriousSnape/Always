@@ -7,6 +7,7 @@ import { buildHighlight, zoneRegion } from './highlight.js';
 import { imgOf } from './lib/forms.js';
 import { prepare } from './lib/prepare.js';
 import { getResult } from './paid.js';
+import { localNarrative } from './lib/localNarrative.js';
 import { SAMPLE } from './sample/me.js';
 import SAMPLE_NARRATIVE from './sample/narrative.json';
 
@@ -100,7 +101,7 @@ function render() {
   const secs = brief.sections.map((spec) => ({ spec, n: NARRATIVE?.sections?.find((s) => s.key === spec.key) }));
   const palaceChips = (reading?.palaces ?? []).filter((p) => p.grade !== 'unread' && p.key !== 'sangmo');
   document.querySelector('#app').innerHTML = `
-    ${MODE === 'sample' ? '<p class="r-mock">시안 · 예시 인물 · 해설은 예시</p>' : MODE === 'demo' ? '<p class="r-mock">결제 전 보기 · 해설은 결제 후 AI가 써요</p>' : ''}
+    ${MODE === 'sample' ? '<p class="r-mock">시안 · 예시 인물 · 해설은 예시</p>' : MODE === 'demo' ? '<p class="r-mock">테스트 · 서버 연결 전이라 AI 대신 원문 풀이로 채웠어요</p>' : ''}
     <header class="r-top">
       <p class="eyebrow">麻衣相法 · 相理衡眞 정밀 관상</p>
       <h1 class="r-name">${esc(name)}의 관상</h1>
@@ -215,7 +216,7 @@ async function main() {
     } catch {}
     if (!P) return status('먼저 첫 화면에서 사진을 찍어 주세요. <a href="./">처음으로</a>');
     X = prepare(P);
-    NARRATIVE = null;
+    NARRATIVE = localNarrative(X.brief, Object.fromEntries(SECTIONS.map((s) => [s.key, s.label])));
     return render();
   }
   MODE = 'sample';
