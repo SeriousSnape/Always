@@ -105,7 +105,7 @@ function render() {
     <header class="r-top">
       <p class="eyebrow">麻衣相法 · 相理衡眞 정밀 관상</p>
       <h1 class="r-name">${esc(name)}의 관상</h1>
-      <p class="r-meta">${[P.birthYear ? `${P.birthYear}년생` : '', P.gender === 'm' ? '남' : P.gender === 'f' ? '여' : '', age ? `세는 나이 ${age}세` : '', P.forehead?.status === 'visible' ? '이마 드러냄 ✓' : ''].filter(Boolean).join(' · ')}</p>
+      <p class="r-meta">${[P.birthYear ? `${P.birthYear}년생` : '', P.gender === 'm' ? '남' : P.gender === 'f' ? '여' : '', age ? `세는 나이 ${age}세` : '', P.forehead?.status === 'visible' ? '이마 드러냄 ✓' : '', P.metrics && Number.isFinite(P.metrics.scanNoseHeight) ? '고개 돌리기 스캔 ✓' : P.metrics ? '정면만 봄' : ''].filter(Boolean).join(' · ')}</p>
     </header>
 
     ${P.metrics ? `<section class="card r-eye">

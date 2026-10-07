@@ -12,6 +12,7 @@ import { buildPayload, sendPayload, ageBandOf, AGE_BANDS } from './lib/contribut
 import { SUPABASE, COLLECT_ON, SERVER_ON } from './config.js';
 import { prepare } from './lib/prepare.js';
 import { createOrder } from './paid.js';
+import { solveDepth, profileMetrics, quickYaw } from './lib/scan.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -151,25 +152,93 @@ $('#btn-camera').addEventListener('click', async () => {
     $('#stage-empty').hidden = true;
     $('#btn-shoot').hidden = false;
     state.photoGps = null;
-    status('얼굴을 화면 가운데에 맞추고 찰칵을 눌러 주세요.');
+    status('얼굴을 화면 가운데에 맞추고, 스캔 시작을 누른 뒤 안내대로 고개를 돌려 주세요.');
   } catch {
     status('카메라를 열 수 없어요. 사진 올리기를 이용해 주세요.');
   }
 });
 
+// 고개 돌리기 스캔: 정면 → 한쪽 → 반대쪽. 여러 각도의 얼굴 점으로 코 높이·콧대 곧음 같은 깊이를 직접 잰다.
 $('#btn-shoot').addEventListener('click', async () => {
-  status('관상을 보는 중… (1초)');
-  const frames = [];
-  for (let i = 0; i < 5; i++) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0);
-    const r = await detect(canvas).catch(() => null);
-    if (r) frames.push(r);
-    await new Promise((res) => setTimeout(res, 200));
+  const btn = $('#btn-shoot');
+  btn.disabled = true;
+  $('#scan-guide').hidden = false;
+  const say = (t) => ($('#scan-say').textContent = t);
+  const mark = (id) => $(id).classList.add('done');
+  const work = document.createElement('canvas');
+  const wctx = work.getContext('2d');
+  const W = video.videoWidth;
+  const H = video.videoHeight;
+  work.width = W;
+  work.height = H;
+  const frontal = [];
+  const turned = [];
+  let best = null; // 가장 정면인 장면(판정·이마·기색용 화면)
+  let step = 'front';
+  let dir = 0;
+  let maxA = 0;
+  let maxB = 0;
+  const t0 = performance.now();
+  say('정면을 보고 잠깐 멈춰요');
+  while (performance.now() - t0 < 25000) {
+    wctx.drawImage(video, 0, 0, W, H);
+    const r = await detect(work).catch(() => null);
+    if (r && r.faces === 1) {
+      const yaw = quickYaw(r.landmarks);
+      $('#scan-dot').style.left = `${Math.max(2, Math.min(98, 50 + yaw * 120))}%`;
+      const f = { landmarks: r.landmarks, w: W, h: H, expression: r.expression };
+      if (Math.abs(yaw) < 0.035) {
+        if (frontal.length < 8) frontal.push(f);
+        if (!best || Math.abs(yaw) < best.yaw) {
+          best = { yaw: Math.abs(yaw), frame: f };
+          ctx.canvas.width = W;
+          ctx.canvas.height = H;
+          ctx.drawImage(work, 0, 0);
+        }
+      } else if (Math.abs(yaw) > 0.06 && Math.abs(yaw) < 0.4) {
+        turned.push(f);
+      }
+      if (step === 'front' && frontal.length >= 6) {
+        step = 'a';
+        mark('#sc-front');
+        say('천천히 한쪽으로 고개를 돌려요');
+      } else if (step === 'a' && Math.abs(yaw) > 0.06) {
+        dir = dir || Math.sign(yaw);
+        if (Math.sign(yaw) === dir) maxA = Math.max(maxA, Math.abs(yaw));
+        if (maxA > 0.16) {
+          step = 'b';
+          mark('#sc-a');
+          say('좋아요. 이번엔 반대쪽으로 천천히');
+        }
+      } else if (step === 'b' && Math.sign(yaw) === -dir) {
+        maxB = Math.max(maxB, Math.abs(yaw));
+        if (maxB > 0.16) {
+          mark('#sc-b');
+          step = 'done';
+          break;
+        }
+      }
+    }
+    await new Promise((res) => setTimeout(res, 60));
   }
   stopCamera();
-  await finishAnalysis(frames, canvas.width, canvas.height);
+  $('#scan-guide').hidden = true;
+  btn.disabled = false;
+  if (frontal.length < 3) return status('정면 얼굴을 충분히 잡지 못했어요. 밝은 곳에서 다시 해 주세요.');
+  let scan = null;
+  if (step === 'done' && turned.length >= 6) {
+    const solved = solveDepth(frontal, turned);
+    const angles = solved?.angles ?? [];
+    // 양쪽으로 12도 이상 돌린 장면이 있어야 믿는다
+    if (solved && Math.min(...angles) < -12 && Math.max(...angles) > 12) scan = profileMetrics(solved);
+  }
+  await finishAnalysis(
+    frontal.map((f) => ({ landmarks: f.landmarks, faces: 1, expression: f.expression })),
+    W,
+    H,
+    scan,
+  );
+  if (!scan) status('고개 돌리기를 끝까지 못 해서 정면만으로 봤어요. 옆모습으로 보는 코의 형 등은 빠졌어요.');
 });
 
 $('#file').addEventListener('change', async (e) => {
@@ -194,12 +263,13 @@ $('#file').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-async function finishAnalysis(frames, w, h) {
+async function finishAnalysis(frames, w, h, scan = null) {
   canvas.hidden = false;
   $('#stage-empty').hidden = true;
   if (!frames.length) return status('얼굴을 찾지 못했어요. 밝은 곳에서 정면으로 다시 찍어 주세요.');
   if (frames.some((f) => f.faces > 1)) return status('한 사람만 나온 사진으로 해 주세요.');
   const metrics = averageMetrics(frames.map((f) => computeMetrics(f.landmarks, w, h)));
+  if (scan) Object.assign(metrics, scan);
   const expression = {
     smile: Math.min(...frames.map((f) => f.expression.smile)),
     jawOpen: Math.min(...frames.map((f) => f.expression.jawOpen)),

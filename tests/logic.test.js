@@ -6,7 +6,7 @@ import { bridgeReading } from '../src/lib/bridge.js';
 import { bearing, directionOf, evaluateLocation, readExifGps, CITIES } from '../src/lib/location.js';
 import { compatibility, toPerson, encodePerson, decodePerson } from '../src/lib/compat.js';
 
-const avg = () => Object.fromEntries(Object.entries(BASE).map(([k, [mu]]) => [k, mu]));
+const avg = () => Object.fromEntries(Object.entries(BASE).filter(([k]) => !k.startsWith('scan')).map(([k, [mu]]) => [k, mu]));
 
 test('정면 판정', () => {
   assert.equal(poseIssue({ yaw: 0.01, roll: 2 }), null);

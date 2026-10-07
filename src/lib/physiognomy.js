@@ -224,11 +224,26 @@ export const BASE = {
   browArch: [0.126, 0.04],
   browSlope: [-0.172, 0.08],
   browThick: [0.242, 0.05],
+  // 고개 돌리기 스캔(옆모습 깊이): 평균은 표준 모델 실제 3D 값, 표준편차는 추정 — 보정 필요
+  scanNoseHeight: [0.737, 0.12],
+  scanRadix: [0.398, 0.1],
+  scanBridgeMid: [1.37, 0.18],
+  scanHump: [0.048, 0.03],
+  scanSaddle: [0, 0.03],
+  scanTipDroop: [-1.06, 0.35],
+  scanEyeProt: [-0.307, 0.08],
+  scanChin: [-0.342, 0.1],
+  scanForehead: [-0.096, 0.06],
+  scanCheek: [-0.4, 0.08],
 };
 
+// 고개 돌리기 스캔으로 직접 잰 깊이가 있으면, 정면 한 장의 깊이 추정 대신 그것을 쓴다
+const SCAN_ALIAS = { bridgeDepth: 'scanRadix', noseMidHeight: 'scanBridgeMid', cheekProm: 'scanCheek' };
 export const z = (m, k) => {
-  const [mu, sd] = BASE[k];
-  return Math.max(-2.5, Math.min(2.5, (m[k] - mu) / sd));
+  const a = SCAN_ALIAS[k];
+  const key = a && Number.isFinite(m[a]) ? a : k;
+  const [mu, sd] = BASE[key];
+  return Math.max(-2.5, Math.min(2.5, (m[key] - mu) / sd));
 };
 
 /** 오행형 얼굴 점수: 목(긴 얼굴)·화(뾰족한 턱)·토(두툼)·금(각진)·수(둥근) */

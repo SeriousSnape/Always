@@ -49,7 +49,12 @@
             <button id="btn-camera" class="primary" disabled>카메라로 보기</button>
             <label class="button disabled" id="label-file">사진 올리기 <input id="file" type="file" accept="image/*" hidden disabled /></label>
           </div>
-          <button id="btn-shoot" class="primary" hidden>찰칵 (1초 동안 5장 분석)</button>
+          <div id="scan-guide" class="scan-guide" hidden>
+            <p id="scan-say" class="scan-say">정면을 보고 잠깐 멈춰요</p>
+            <div class="scan-bar" aria-hidden="true"><span class="scan-zone l"></span><span class="scan-zone c"></span><span class="scan-zone r"></span><i id="scan-dot"></i></div>
+            <ol class="scan-steps"><li id="sc-front">정면</li><li id="sc-a">한쪽으로</li><li id="sc-b">반대쪽으로</li></ol>
+          </div>
+          <button id="btn-shoot" class="primary" hidden>고개 돌리기 스캔 시작 (약 10초)</button>
           <p id="photo-status" class="status" role="status"></p>
         </div>
       </section>

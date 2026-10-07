@@ -289,3 +289,15 @@ blockquote { margin: 12px 0; padding: 10px 12px; background: var(--bg); border-r
 .refs .rest::before { content: '측정하지 못한 부분 · '; font-weight: 700; color: var(--gold); }
 .paid { border-color: var(--gold); }
 .paid textarea, .paid input { width: 100%; font: inherit; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); margin-top: 4px; }
+
+.scan-guide { margin: 10px 0; text-align: center; }
+.scan-say { font-weight: 800; font-size: 18px; margin: 0 0 8px; }
+.scan-bar { position: relative; height: 14px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.scan-zone { position: absolute; top: 0; bottom: 0; }
+.scan-zone.l { left: 0; width: 30%; background: color-mix(in srgb, var(--gold) 25%, transparent); }
+.scan-zone.r { right: 0; width: 30%; background: color-mix(in srgb, var(--gold) 25%, transparent); }
+.scan-zone.c { left: 45%; width: 10%; background: color-mix(in srgb, var(--ink) 15%, transparent); }
+#scan-dot { position: absolute; top: 1px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); left: 50%; transform: translateX(-50%); transition: left 0.1s linear; }
+.scan-steps { display: flex; justify-content: center; gap: 14px; list-style: none; padding: 0; margin: 8px 0 0; font-size: 13px; color: var(--sub); }
+.scan-steps li.done { color: var(--gold); font-weight: 800; }
+.scan-steps li.done::before { content: '✓ '; }

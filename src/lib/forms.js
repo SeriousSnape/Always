@@ -145,8 +145,9 @@ export const BAD_FORMS = {
     { key: 'bidulgi', hanja: '鴿眼', name: '비둘기 눈', tag: '貪淫', page: 'p86', how: 'front', p: [-1.6, -1.6, 0],
       q: '鴿眼睛… 小圓', t: '비둘기 눈은 (눈동자가) 작고 둥글다 — 원전은 음란함을 탐한다(貪淫)고 한다.' },
     { key: 'mal', hanja: '馬眼', name: '말의 눈', tag: '勞碌', page: 'p85', how: 'image', q: '皮寬三角睛露', t: '눈꺼풀이 늘어져 세모지고 눈동자가 드러나면, 종일 일해도 끝내 가난하고 고생한다.' },
-    { key: 'mulgogi', hanja: '魚眼', name: '물고기 눈', tag: '主夭', page: 'p85', how: 'scan', q: '睛露', t: '눈동자가 튀어나오면 일찍 죽는다.' },
-    { key: 'baem', hanja: '蛇眼', name: '뱀의 눈', tag: '狠毒', page: 'p86', how: 'scan', q: '睛紅圓露', t: '눈동자가 붉고 둥글게 드러나면 마음이 독하다.' },
+    { key: 'mulgogi', hanja: '魚眼', name: '물고기 눈', tag: '主夭', page: 'p85', how: 'scan',
+      rule: (m) => z(m, 'scanEyeProt') > 2, q: '睛露', t: '눈동자가 튀어나오면 일찍 죽는다.' },
+    { key: 'baem', hanja: '蛇眼', name: '뱀의 눈', tag: '狠毒', page: 'p86', how: 'never', q: '睛紅圓露', t: '눈동자가 붉고 둥글게 드러나면 마음이 독하다.' },
     { key: 'yang', hanja: '羊眼', name: '양의 눈', tag: '半世破祖', page: 'p85', how: 'never', q: '黑淡微黃 神不清', t: '검은자가 엷고 누르며 신이 맑지 않으면 반평생에 조상의 업을 깨뜨린다.' },
     { key: 'dwaeji', hanja: '猪眼', name: '돼지 눈', tag: '凶惡', page: 'p86', how: 'never', q: '白昏睛露黑朦朧', t: '흰자가 흐리고 검은자가 몽롱하면 흉악하다.' },
     { key: 'neukdae', hanja: '狼目', name: '이리 눈', tag: '主兇', page: 'p87', how: 'never', q: '狼目睛黃', t: '눈동자가 누르면 흉하다.' },
@@ -156,10 +157,13 @@ export const BAD_FORMS = {
       q: '小準頭', t: '코끝이 작으면 가난하고 천하다.' },
     { key: 'gobong', hanja: '孤峯鼻', name: '외로운 봉우리 코', tag: '孤獨', page: 'p96', how: 'front',
       rule: (m) => z(m, 'noseMidHeight') > 1.5 && z(m, 'cheekProm') < -1.2, q: '孤峯', t: '코만 홀로 솟고 둘레가 낮으면 외롭다.' },
-    { key: 'maejuri', hanja: '鷹嘴鼻', name: '매부리코', tag: '巨惡', page: 'p95', how: 'scan', q: '準頭尖 又如鷹嘴', t: '코끝이 뾰족하고 매 부리 같으면 크게 악하다.' },
-    { key: 'geombong', hanja: '劍鋒鼻', name: '칼날 코', tag: '主孤', page: 'p96', how: 'scan', q: '鼻梁露脊如刀', t: '콧대가 칼등처럼 드러나면 형제와 인연이 없고 외롭다.' },
-    { key: 'samman', hanja: '三彎三曲鼻', name: '세 번 굽은 코', tag: '主孤', page: 'p95', how: 'scan', q: '鼻有三彎', t: '코가 세 번 굽으면 외롭고 눈물이 마르지 않는다.' },
-    { key: 'nojo', hanja: '露竈鼻', name: '콧구멍이 드러난 코', tag: '主貧', page: 'p97', how: 'scan', q: '孔大鼻高', t: '콧구멍이 크게 드러나면 집안 살림이 어렵고 고생이 많다.' },
+    { key: 'maejuri', hanja: '鷹嘴鼻', name: '매부리코', tag: '巨惡', page: 'p95', how: 'scan',
+      rule: (m) => z(m, 'scanHump') > 1.5 && z(m, 'scanTipDroop') > 1.2, q: '準頭尖 又如鷹嘴', t: '코끝이 뾰족하고 매 부리 같으면 크게 악하다.' },
+    { key: 'geombong', hanja: '劍鋒鼻', name: '칼날 코', tag: '主孤', page: 'p96', how: 'scan',
+      rule: (m) => z(m, 'noseWidth') < -1 && z(m, 'scanBridgeMid') > 1.2, q: '鼻梁露脊如刀', t: '콧대가 칼등처럼 드러나면 형제와 인연이 없고 외롭다.' },
+    { key: 'samman', hanja: '三彎三曲鼻', name: '세 번 굽은 코', tag: '主孤', page: 'p95', how: 'scan',
+      rule: (m) => z(m, 'scanHump') > 1.2 && z(m, 'scanSaddle') < -1.2, q: '鼻有三彎', t: '코가 세 번 굽으면 외롭고 눈물이 마르지 않는다.' },
+    { key: 'nojo', hanja: '露竈鼻', name: '콧구멍이 드러난 코', tag: '主貧', page: 'p97', how: 'image', q: '孔大鼻高', t: '콧구멍이 크게 드러나면 집안 살림이 어렵고 고생이 많다.' },
   ],
   mouth: [
     { key: 'bungeo', hanja: '鯽魚口', name: '붕어 입', tag: '主貧', page: 'p105', how: 'front', p: [-1.9, -0.5, 0],
@@ -184,7 +188,7 @@ export function badFormsOf(m) {
     const dist = (p) => Math.hypot(...p.map((v, i) => s[i] - v));
     const nearestGood = s ? Math.min(...o.types.map((t) => dist(t.p))) : Infinity;
     for (const b of list) {
-      if (b.how !== 'front') continue;
+      if (!(b.how === 'front' || (b.how === 'scan' && hasScan(m) && b.rule))) continue;
       const hit = b.rule ? b.rule(m) : s && dist(b.p) < nearestGood;
       if (hit) hits.push({ ...b, organ, organName: o.name });
     }
@@ -204,11 +208,15 @@ const ORGAN_JUDGE = {
 const WEIGHT = { eye: 5, brow: 2, nose: 2, mouth: 2, ear: 2 };
 
 /** 한 관의 닮은 형 */
+export const hasScan = (m) => Number.isFinite(m?.scanNoseHeight);
+
 export function formOf(organ, m) {
   const o = ORGANS[organ];
   if (!o.shape) return null;
   const s = o.shape(m);
+  // 옆모습으로 가리는 형(scan)은 고개 돌리기 스캔이 있을 때만 후보
   const ranked = o.types
+    .filter((t) => !t.scan || hasScan(m))
     .map((t) => ({ ...t, organ, d: Math.hypot(...t.p.map((v, i) => s[i] - v)) }))
     .sort((a, b) => a.d - b.d);
   return { organ, name: o.name, officer: o.officer, best: ranked[0], second: ranked[1], shape: s, axes: o.axes };

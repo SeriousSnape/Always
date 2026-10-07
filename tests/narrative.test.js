@@ -95,6 +95,7 @@ test('흉한 형은 측정 방식이 정해져 있고, 정면으로 재는 것�
     assert.ok(['front', 'scan', 'image', 'never'].includes(b.how), b.key);
     assert.ok(b.q && b.t, b.key);
     if (b.how === 'front') assert.ok(b.p || b.rule, b.key);
+    if (b.how === 'scan') assert.ok(b.rule, `${b.key}: 스캔 형은 규칙이 있어야`);
   }
   assert.deepEqual(badFormsOf(SAMPLE.metrics), []);
 });
@@ -150,4 +151,15 @@ test('서버 연결 전 원문 풀이: 모든 칸을 채우고, 흉 직역을 �
   const ss = brief.sections.find((s) => s.key === 'sseunsori');
   const body = n.sections.find((s) => s.key === 'sseunsori').body;
   for (const f of ss.facts.filter((f) => f.grade === 'bad')) for (const q of f.quotes) assert.ok(body.includes(q.t));
+});
+
+test('스캔이 있을 때만 옆모습 형을 판정한다', async () => {
+  const { formOf, badFormsOf } = await import('../src/lib/forms.js');
+  const { BASE } = await import('../src/lib/physiognomy.js');
+  const noScan = formOf('nose', SAMPLE.metrics);
+  assert.ok(!noScan.best.scan, '정면만이면 쓸개 코·무소 코 등은 후보가 아니다');
+  const scanned = { ...SAMPLE.metrics, ...Object.fromEntries(Object.entries(BASE).filter(([k]) => k.startsWith('scan')).map(([k, [mu]]) => [k, mu])) };
+  const hooked = { ...scanned, scanHump: BASE.scanHump[0] + 2 * BASE.scanHump[1], scanTipDroop: BASE.scanTipDroop[0] + 2 * BASE.scanTipDroop[1] };
+  assert.ok(!badFormsOf(SAMPLE.metrics).some((b) => b.key === 'maejuri'));
+  assert.ok(badFormsOf(hooked).some((b) => b.key === 'maejuri'));
 });
