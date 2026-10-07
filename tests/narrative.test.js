@@ -6,12 +6,13 @@ import { buildBrief, checkNarrative } from '../src/lib/narrative.js';
 import { SAMPLE } from '../src/sample/me.js';
 import { eyeTypeOf } from '../src/lib/eyes.js';
 import { formsOf } from '../src/lib/forms.js';
+import { readComplexion, hues, measureComplexion } from '../src/lib/complexion.js';
 
 const opts = { forehead: SAMPLE.forehead, gender: SAMPLE.gender };
 const reading0 = readFace(SAMPLE.metrics, opts);
 const lead = formsOf(SAMPLE.metrics, reading0.results).lead;
 const L = { ...lead.best, name: `${lead.name} · ${lead.best.name}`, shape: lead.best.says, verse: lead.best.says, verseKo: lead.best.reading, traits: [] };
-const brief = buildBrief(reading0, yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear), SAMPLE, { eye: L });
+const brief = buildBrief(reading0, yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear), SAMPLE, { eye: L, complexion: readComplexion(SAMPLE.complexion, { month: 10 }) });
 const sample = JSON.parse(readFileSync(new URL('../src/sample/narrative.json', import.meta.url)));
 
 test('예시 해설은 출력 검사를 통과한다', () => {
@@ -96,4 +97,46 @@ test('흉한 형은 측정 방식이 정해져 있고, 정면으로 재는 것�
     if (b.how === 'front') assert.ok(b.p || b.rule, b.key);
   }
   assert.deepEqual(badFormsOf(SAMPLE.metrics), []);
+});
+
+test('기색: 두 뺨 대비 차이로 빛깔을 정하고, 원전에 있는 부위·빛깔 조합만 판정', () => {
+  assert.deepEqual(hues({ dL: 0, da: 0, db: 0 }, 'myung'), []);
+  assert.ok(hues({ dL: 10, da: 0, db: 0 }, 'myung').includes('明'));
+  assert.ok(!hues({ dL: 10, da: 0, db: 0 }, 'jaebaek').includes('明'), '코끝은 원래 밝은 몫을 뺀다');
+  const cx = (deltas) => ({ deltas, quality: { ok: true, issues: [] } });
+  const r1 = readComplexion(cx({ yeonsu: { dL: -14, da: 0, db: 0, glare: 0 } }), { month: 10 });
+  assert.equal(r1.items[0].ref.q, '黑主大病死亡');
+  assert.ok(r1.note.q.includes('神旺'));
+  // 사계월이 아니면 '연상·수상 누름'은 말하지 않는다
+  assert.equal(readComplexion(cx({ yeonsu: { dL: 0, da: 0, db: 8, glare: 0 } }), { month: 10 }).items.length, 0);
+  assert.equal(readComplexion(cx({ yeonsu: { dL: 0, da: 0, db: 8, glare: 0 } }), { month: 9 }).items.length, 1);
+  // 촬영 검사에 걸리면 판정하지 않는다
+  assert.equal(readComplexion({ deltas: {}, quality: { ok: false, issues: ['어두움'] } }).ok, false);
+});
+
+test('기색 측정: 한쪽만 밝으면 거부, 고른 빛이면 차이 0', () => {
+  const W = 200, H = 200;
+  const lm = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }));
+  lm[133] = { x: 0.4, y: 0.4 }; lm[362] = { x: 0.6, y: 0.4 };
+  lm[50] = { x: 0.3, y: 0.6 }; lm[280] = { x: 0.7, y: 0.6 };
+  const img = (left, right) => {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = x < W / 2 ? left : right; const i = (y * W + x) * 4;
+      data[i] = v; data[i + 1] = v * 0.8; data[i + 2] = v * 0.7; data[i + 3] = 255;
+    }
+    return { data, width: W, height: H };
+  };
+  assert.equal(measureComplexion(img(180, 180), lm).quality.ok, true);
+  assert.equal(measureComplexion(img(200, 120), lm).quality.ok, false);
+});
+
+test('흉한 기색에는 신(神) 구절이 함께 실려야 한다', () => {
+  const comp = { ok: true, items: [{ key: 'yeonsu', region: '연상·수상', hues: ['黑'], grade: 'bad', ref: { q: '黑主大病死亡', s: '麻衣 p165', t: '검으면 큰 병과 죽음이 있다.' } }], note: readComplexion({ deltas: {}, quality: { ok: true } }).note };
+  const br = buildBrief(reading0, [], SAMPLE, { complexion: comp });
+  const out = structuredClone(sample);
+  const g = out.sections.find((s) => s.key === 'gisaek');
+  g.body += ' 검으면 큰 병과 죽음이 있다.';
+  const why = checkNarrative(out, br).problems.filter((p) => p.key === 'gisaek').map((p) => p.why).join('\n');
+  assert.match(why, /신\(神\) 구절/);
 });

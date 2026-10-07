@@ -7,7 +7,7 @@ import { toPerson, encodePerson, decodePerson, compatibility } from './lib/compa
 import { josa } from './lib/josa.js';
 import { buildGraph } from './graph.js';
 import { buildFaceChart } from './chart.js';
-import { detect, loadLandmarker, foreheadOf } from './face.js';
+import { detect, loadLandmarker, foreheadOf, complexionOf } from './face.js';
 import { buildPayload, sendPayload, ageBandOf, AGE_BANDS } from './lib/contribute.js';
 import { SUPABASE, COLLECT_ON } from './config.js';
 
@@ -209,8 +209,9 @@ async function finishAnalysis(frames, w, h) {
   }
   // 점을 그리기 전에 머리카락 영역을 본다 (麻衣 p49: 상정은 머리선부터)
   const forehead = await foreheadOf(canvas, frames.at(-1).landmarks);
+  const complexion = complexionOf(canvas, frames.at(-1).landmarks, forehead);
   drawLandmarks(frames.at(-1).landmarks, w, h);
-  state.face = { metrics, forehead };
+  state.face = { metrics, forehead, complexion };
   store.set('face', state.face);
   status('');
   renderResult();

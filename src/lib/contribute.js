@@ -5,6 +5,10 @@ import { BASE } from './physiognomy.js';
 
 export const SCHEMA_VERSION = 2;
 export const METRIC_KEYS = Object.keys(BASE);
+// 기색 보정용: 부위별 두 뺨 대비 차이 (예: cxMyungL)
+export const CX_KEYS = ['myung', 'gwanrok', 'bumo', 'jilaek', 'yeonsu', 'jaebaek', 'cheocheop'].flatMap((r) =>
+  ['L', 'a', 'b'].map((c) => `cx${r[0].toUpperCase()}${r.slice(1)}${c}`),
+);
 export const AGE_BANDS = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
 
 export function ageBandOf(birthYear, thisYear = new Date().getFullYear()) {
@@ -23,7 +27,7 @@ export function ageBandOf(birthYear, thisYear = new Date().getFullYear()) {
  * @param {string} p.ageBand
  * @param {string} p.device 기기마다 임의로 만든 ID (반복성 확인용, 개인 식별 불가)
  */
-export function buildPayload({ metrics, forehead, gender, ageBand, device }) {
+export function buildPayload({ metrics, forehead, gender, ageBand, device, complexion = null }) {
   const round = (x) => (Number.isFinite(x) ? Math.round(x * 1e5) / 1e5 : null);
   return {
     v: SCHEMA_VERSION,
@@ -32,7 +36,18 @@ export function buildPayload({ metrics, forehead, gender, ageBand, device }) {
     ageBand: AGE_BANDS.includes(ageBand) ? ageBand : '',
     forehead: forehead?.status ?? '',
     thirds: forehead?.status === 'visible' ? [forehead.thirds.upper, forehead.thirds.middle, forehead.thirds.lower].map(round) : null,
-    metrics: Object.fromEntries(METRIC_KEYS.map((k) => [k, round(metrics[k])])),
+    metrics: {
+      ...Object.fromEntries(METRIC_KEYS.map((k) => [k, round(metrics[k])])),
+      ...(complexion?.quality?.ok
+        ? Object.fromEntries(
+            Object.entries(complexion.deltas).flatMap(([r, d]) => [
+              [`cx${r[0].toUpperCase()}${r.slice(1)}L`, round(d.dL)],
+              [`cx${r[0].toUpperCase()}${r.slice(1)}a`, round(d.da)],
+              [`cx${r[0].toUpperCase()}${r.slice(1)}b`, round(d.db)],
+            ]),
+          )
+        : {}),
+    },
   };
 }
 

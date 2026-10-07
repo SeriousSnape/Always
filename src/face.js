@@ -1,6 +1,7 @@
 // 브라우저 안에서만 얼굴 랜드마크와 머리카락 영역을 추출한다. 사진은 서버로 전송되지 않는다.
 import { FaceLandmarker, FilesetResolver, ImageSegmenter } from '@mediapipe/tasks-vision';
 import { analyzeForehead } from './lib/forehead.js';
+import { measureComplexion } from './lib/complexion.js';
 
 const BASE = import.meta.env.BASE_URL;
 let filesetPromise = null;
@@ -58,5 +59,16 @@ export async function foreheadOf(canvas, landmarks) {
   } catch (err) {
     console.error(err);
     return { status: 'unclear', reason: '이마를 분석하지 못했어요', thirds: null };
+  }
+}
+
+/** 기색: 같은 사진 안에서 부위 빛깔을 두 뺨과 비교 (점을 그리기 전에 호출) */
+export function complexionOf(canvas, landmarks, forehead) {
+  try {
+    const img = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    return measureComplexion(img, landmarks, forehead);
+  } catch (err) {
+    console.error(err);
+    return null;
   }
 }

@@ -230,6 +230,11 @@ test('측정값 기여: 보내는 값에 사진·좌표 없음, 지표는 이름
   const p = buildPayload({ metrics: avg(), forehead: { status: 'visible', thirds: { upper: 0.3, middle: 0.33, lower: 0.37 } }, gender: 'f', ageBand: '30대', device: 'abc' });
   assert.deepEqual(Object.keys(p).sort(), ['ageBand', 'device', 'forehead', 'gender', 'metrics', 'thirds', 'v']);
   assert.deepEqual(Object.keys(p.metrics), METRIC_KEYS);
+  const { CX_KEYS } = await import('../src/lib/contribute.js');
+  const p2 = buildPayload({ metrics: avg(), forehead: null, gender: '', ageBand: '', device: 'abc', complexion: { quality: { ok: true }, deltas: { myung: { dL: 1, da: 2, db: 3 } } } });
+  assert.equal(p2.metrics.cxMyungL, 1);
+  assert.ok([...METRIC_KEYS, ...CX_KEYS].length <= 100);
+  assert.ok(CX_KEYS.every((k) => /^[A-Za-z0-9]{1,32}$/.test(k)));
   assert.ok(METRIC_KEYS.every((k) => /^[A-Za-z0-9]{1,32}$/.test(k)), 'SQL 함수의 지표 이름 규칙');
   assert.ok(METRIC_KEYS.length <= 100);
   assert.match(sql, new RegExp(`\\(p->>'v'\\) is distinct from '${p.v}'`), 'SQL 함수 버전 일치');

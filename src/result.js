@@ -4,6 +4,7 @@ import { buildBrief, SECTIONS } from './lib/narrative.js';
 import { buildHighlight, zoneRegion } from './highlight.js';
 import { eyeTypeOf } from './lib/eyes.js';
 import { formsOf, imgOf, badFormsOf } from './lib/forms.js';
+import { readComplexion } from './lib/complexion.js';
 import { SAMPLE } from './sample/me.js';
 import NARRATIVE from './sample/narrative.json';
 
@@ -14,7 +15,8 @@ const eyeR = eyeTypeOf(SAMPLE.metrics);
 const eye = { ...eyeR.best, traits: eyeR.traits };
 const forms = formsOf(SAMPLE.metrics, reading.results);
 const lead = { ...forms.lead.best, organName: forms.lead.name };
-const brief = buildBrief(reading, yearly, SAMPLE, { badForms: badFormsOf(SAMPLE.metrics), eye: { ...lead, name: `${lead.organName} · ${lead.name}`, shape: lead.says, verse: lead.says, verseKo: lead.reading, shapeKo: lead.shapeKo, traits: [] } });
+const complexion = readComplexion(SAMPLE.complexion, { month: 10 });
+const brief = buildBrief(reading, yearly, SAMPLE, { complexion, badForms: badFormsOf(SAMPLE.metrics), eye: { ...lead, name: `${lead.organName} · ${lead.name}`, shape: lead.says, verse: lead.says, verseKo: lead.reading, shapeKo: lead.shapeKo, traits: [] } });
 const age = SAMPLE.thisYear - SAMPLE.birthYear + 1;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -50,6 +52,9 @@ function pictureOf(spec) {
   for (const f of spec.facts) {
     if (!f.grade) continue;
     const FORM_REGION = { brow: 'hyungje', eye: 'jeontaek', nose: 'jaebaek', mouth: 'chulnap' };
+    if (f.id === 'cx:note') continue;
+    const CX_REGION = { myung: 'myung', gwanrok: 'gwanrok', bumo: 'bumo', jilaek: 'jilaek', yeonsu: 'jilaek', jaebaek: 'jaebaek', cheocheop: 'cheocheop' };
+    if (f.id.startsWith('cx:')) { const r = CX_REGION[f.id.split(':')[1]]; if (!seen.has(r)) { seen.add(r); marks.push({ region: r, grade: f.grade, label: f.part.replace('기색 · ', '') }); } continue; }
     const region = f.id.startsWith('zone:') ? zoneRegion(f.part.split(': ')[1] ?? '') : f.id.startsWith('form:') ? FORM_REGION[f.id.split(':')[1]] : f.id;
     if (!region || seen.has(region) || region === 'sangmo') continue;
     seen.add(region);

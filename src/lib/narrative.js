@@ -18,6 +18,7 @@ export const SECTIONS = [
   { key: 'gajok', label: '가족 인연', facts: ['bumo', 'hyungje', 'namnyeo'] },
   { key: 'gyeot', label: '곁에 둘 사람', facts: ['hyungje', 'nobok'] },
   { key: 'olhae', label: '올해의 얼굴', facts: 'yearly' },
+  { key: 'gisaek', label: '요즘 얼굴빛(기색)', facts: 'complexion' },
   { key: 'gomin', label: '내 고민, 관상으로 보면', facts: 'all', needsWorry: true },
   { key: 'majimak', label: '마지막 한마디', facts: 'summary' },
 ];
@@ -45,7 +46,7 @@ const factOf = (id, j) => ({
  * @param {Array} yearly yearlyFlow() 결과
  * @param {{birthYear:number, gender:'m'|'f'|null, worry?:string, thisYear:number}} who
  */
-export function buildBrief(reading, yearly, who, { eye = null, badForms = [] } = {}) {
+export function buildBrief(reading, yearly, who, { eye = null, badForms = [], complexion = null } = {}) {
   const all = {};
   for (const [k, j] of Object.entries(reading.results)) {
     if (j.grade !== 'unread') all[k] = factOf(k, j);
@@ -87,10 +88,19 @@ export function buildBrief(reading, yearly, who, { eye = null, badForms = [] } =
       return [...judged.filter((f) => f.id === 'eye' || f.id === s.best?.key || f.id === s.worst?.key || f.id === 'gamchal' || f.id === 'jaebaek'), all.method];
     }
     if (spec === 'yearly') return [];
+    if (spec === 'complexion') {
+      if (!complexion?.ok) return [];
+      const items = complexion.items.map((it, i) => ({
+        id: `cx:${it.key}:${i}`, part: `기색 · ${it.region}`, grade: it.grade,
+        look: `${it.region}이 두 뺨보다 ${it.hues.join('·')}`, quotes: [it.ref],
+      }));
+      // 신(神)을 함께 보라는 원전 구절은 늘 근거로 둔다
+      return [...items, { id: 'cx:note', part: '기색을 볼 때', grade: null, look: '같은 사진 안에서 부위 빛깔을 두 뺨과 비교했다', quotes: [complexion.note] }];
+    }
     return spec.map((k) => all[k]).filter(Boolean);
   };
   const worry = (who.worry ?? '').trim().slice(0, 300);
-  const sections = SECTIONS.filter((s) => !s.needsWorry || worry).map((s) => ({
+  const sections = SECTIONS.filter((s) => (!s.needsWorry || worry) && (s.key !== 'gisaek' || complexion?.ok)).map((s) => ({
     key: s.key,
     label: s.label,
     fixedTitle: s.fixedTitle ?? null,
@@ -141,9 +151,10 @@ export const SYSTEM_PROMPT = `너는 관상 해설가다. 『增補麻衣相法�
 3. 한자는 facts의 quotes[].q에 있는 것만 쓴다. 원문을 새로 만들거나 바꾸지 않는다.
 4. sseunsori 칸: 모든 bad 판정을 다룬다. 각각 직역(quotes[].t)을 본문에 글자 그대로 넣고, 그 뒤에 이 사람이 받아들일 수 있게 풀어 준다. 원문의 뜻을 무르거나 '사실은 괜찮다'로 뒤집지 않는다. 다만 관상은 한 부위로 정해지지 않는다는 원전의 태도(여러 부위를 함께 본다)를 덧붙일 수 있다.
 5. olhae 칸: years의 나이·자리·판정 순서대로 올해와 앞으로를 말한다. 나이는 세는 나이다.
-6. gomin 칸: worry를 facts와 연결하되, 관상이 답할 수 없는 부분은 답하는 척하지 않는다.
-7. 쓰지 않는 것: 오행형(목형·화형 등) 얼굴 분류, 두 사람 궁합, 개운법·부적·성형 권유, 사주, 질병 진단·의료·법률 조언, 사람을 단정하는 혐오 표현.
-8. 성별에 따라 원문이 다른 경우는 facts에 이미 반영돼 있다. 따로 성별 고정관념을 덧붙이지 않는다.
+6. gisaek 칸: 원전은 얼굴빛이 보름마다 바뀐다고 하니, '요즘'의 얼굴빛으로 쓴다. 걸린 기색이 없으면 '두드러진 기색 없이 고르다'고 짧게 쓴다. 신(神)에 관한 원전 구절(cx:note)은 흉한 기색이 있을 때 반드시 함께 전한다.
+7. gomin 칸: worry를 facts와 연결하되, 관상이 답할 수 없는 부분은 답하는 척하지 않는다.
+8. 쓰지 않는 것: 오행형(목형·화형 등) 얼굴 분류, 두 사람 궁합, 개운법·부적·성형 권유, 사주, 질병 진단·의료·법률 조언, 사람을 단정하는 혐오 표현.
+9. 성별에 따라 원문이 다른 경우는 facts에 이미 반영돼 있다. 따로 성별 고정관념을 덧붙이지 않는다.
 
 followups: 이 사람이 다 읽고 나서 더 묻고 싶을 만한 질문 3개(각 40자 이내, 이 사람의 판정과 고민에 맞춰서).`;
 
@@ -220,7 +231,11 @@ export function checkNarrative(output, brief) {
     let plain = sec.body;
     for (const q of secQ) plain = plain.split(q.t).join('');
     if (GRADE_WORDS.test(plain) || GRADE_WORDS.test(sec.title)) add(sec.key, '등급 낱말을 직접 썼다');
-    if (sec.key === 'sseunsori') {
+    if (sec.key === 'gisaek' && spec.facts.some((f) => f.grade === 'bad')) {
+      const note = spec.facts.find((f) => f.id === 'cx:note');
+      if (note && !sec.quotes.includes(note.quotes[0].q)) add(sec.key, '흉한 기색에는 신(神) 구절을 함께 실어야 한다');
+    }
+    if (sec.key === 'sseunsori' || sec.key === 'gisaek') {
       for (const f of spec.facts) {
         if (f.grade !== 'bad') continue;
         for (const q of f.quotes) {
