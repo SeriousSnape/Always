@@ -38,6 +38,8 @@ export async function generate(orderId: string) {
     const brief = order.brief;
     const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: 'user', content: userMessage(brief) }];
     let { json, msg } = await ask(client, messages);
+    // 비용 기록: 다시 쓴 호출까지 합친 토큰
+    const usage = { input_tokens: msg.usage.input_tokens, output_tokens: msg.usage.output_tokens, calls: 1 };
     let check = checkNarrative(json, brief);
     if (!check.ok) {
       const bad = [...new Set(check.problems.map((p: { key: string }) => p.key))];
@@ -58,6 +60,9 @@ export async function generate(orderId: string) {
         followups: again.json.followups?.length === 3 ? again.json.followups : json.followups,
       };
       msg = again.msg;
+      usage.input_tokens += msg.usage.input_tokens;
+      usage.output_tokens += msg.usage.output_tokens;
+      usage.calls += 1;
       check = checkNarrative(json, brief);
     }
     // 검사에 끝까지 걸린 칸은 보여 주지 않는다(지어낸 원문·등급 뒤집기 방지)
@@ -65,7 +70,7 @@ export async function generate(orderId: string) {
     const safe = { ...json, sections: json.sections.filter((s: { key: string }) => !badKeys.has(s.key)) };
     await sb
       .from('orders')
-      .update({ status: 'done', narrative: safe, check_result: { ...check, model: msg.model, usage: msg.usage } })
+      .update({ status: 'done', narrative: safe, check_result: { ...check, model: msg.model, usage } })
       .eq('id', orderId);
   } catch (e) {
     await sb.from('orders').update({ status: 'paid', error: String(e) }).eq('id', orderId);

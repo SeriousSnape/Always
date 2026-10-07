@@ -182,7 +182,7 @@ export const NARRATIVE_SCHEMA = {
 };
 
 export const userMessage = (brief) =>
-  `아래 판정으로 해설을 써 줘. sections는 brief.sections의 순서와 key 그대로.\n\n${JSON.stringify(brief, null, 2)}`;
+  `아래 판정으로 해설을 써 줘. sections는 brief.sections의 순서와 key 그대로.\n\n${JSON.stringify(brief)}`;
 
 // ── 출력 검사 ──
 const HANJA_RUN = /[㐀-鿿]{2,}/g;
