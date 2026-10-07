@@ -189,3 +189,6 @@ main { padding-bottom: 32px; }
 .r-form.pending { justify-content: center; color: var(--sub); border-style: dashed; min-height: 120px; }
 .r-form.pending strong { font-size: 14px; color: var(--sub); }
 .r-eye-pic img { max-height: 240px; object-fit: cover; }
+.r-wait { text-align: center; padding: 40px 20px; }
+.r-wait small { color: var(--sub); }
+#payment-method, #agreement { margin-bottom: 8px; }

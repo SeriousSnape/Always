@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>정밀 관상 결제</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/result.css" />
+    <script src="https://js.tosspayments.com/v2/standard"></script>
+  </head>
+  <body>
+    <main>
+      <header class="r-top">
+        <p class="eyebrow">麻衣相法 · 相理衡眞 정밀 관상</p>
+        <h1 class="r-name">결제</h1>
+        <p class="r-meta" id="pay-meta"></p>
+      </header>
+      <section class="card">
+        <div id="payment-method"></div>
+        <div id="agreement"></div>
+        <p class="fine">결제가 끝나면 AI가 해설을 써요(1~2분). 해설이 만들어지기 시작한 뒤에는 디지털 콘텐츠 특성상 청약철회가 제한돼요. 해설을 만들지 못하면 결제를 취소해 드려요.</p>
+        <button id="btn-pay" class="primary" disabled>결제하기</button>
+        <p id="pay-status" class="hint"></p>
+      </section>
+    </main>
+    <script type="module" src="/src/pay.js"></script>
+  </body>
+</html>

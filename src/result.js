@@ -1,23 +1,19 @@
-// 유료 결과 화면 시안 — 예시 인물(src/sample) 판정 + 예시 해설로 그린다.
-import { readFace, yearlyFlow, zoneGrades } from './lib/reading.js';
-import { buildBrief, SECTIONS } from './lib/narrative.js';
+// 유료 결과 화면
+//  · result.html?order=…&token=…  실제 주문: 서버에서 해설을 받아 오고, 그림은 이 기기에 남은 측정값으로 그린다
+//  · result.html?demo=1           결제 없이 내 측정값으로(해설 칸은 비어 있음)
+//  · result.html                  시안: 예시 인물 + 예시 해설
+import { SECTIONS } from './lib/narrative.js';
 import { buildHighlight, zoneRegion } from './highlight.js';
-import { eyeTypeOf } from './lib/eyes.js';
-import { formsOf, imgOf, badFormsOf } from './lib/forms.js';
-import { readComplexion } from './lib/complexion.js';
+import { imgOf } from './lib/forms.js';
+import { prepare } from './lib/prepare.js';
+import { getResult } from './paid.js';
 import { SAMPLE } from './sample/me.js';
-import NARRATIVE from './sample/narrative.json';
+import SAMPLE_NARRATIVE from './sample/narrative.json';
 
-const opts = { forehead: SAMPLE.forehead, gender: SAMPLE.gender };
-const reading = readFace(SAMPLE.metrics, opts);
-const yearly = yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear);
-const eyeR = eyeTypeOf(SAMPLE.metrics);
-const eye = { ...eyeR.best, traits: eyeR.traits };
-const forms = formsOf(SAMPLE.metrics, reading.results);
-const lead = { ...forms.lead.best, organName: forms.lead.name };
-const complexion = readComplexion(SAMPLE.complexion, { month: 10 });
-const brief = buildBrief(reading, yearly, SAMPLE, { complexion, badForms: badFormsOf(SAMPLE.metrics), eye: { ...lead, name: `${lead.organName} · ${lead.name}`, shape: lead.says, verse: lead.says, verseKo: lead.reading, shapeKo: lead.shapeKo, traits: [] } });
-const age = SAMPLE.thisYear - SAMPLE.birthYear + 1;
+let P; // 사람
+let X; // prepare() 결과
+let NARRATIVE;
+let MODE;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const G = { good: '길', mid: '평', bad: '흉' };
@@ -63,10 +59,12 @@ function pictureOf(spec) {
   if (!marks.length || spec.key === 'gomin') return '';
   // 큰 띠(삼정·상모)를 먼저 깔고 작은 자리를 위에
   marks.sort((a, b) => (['thirds', 'sangmo'].includes(b.region) ? 1 : 0) - (['thirds', 'sangmo'].includes(a.region) ? 1 : 0));
-  return `<figure class="r-pic">${buildHighlight(SAMPLE.metrics, marks, { clipId: `hl${hlId++}` }).svg}</figure>`;
+  return `<figure class="r-pic">${buildHighlight(P.metrics, marks, { clipId: `hl${hlId++}` }).svg}</figure>`;
 }
 
 function section(spec, n, i) {
+  const label0 = SECTIONS.find((s) => s.key === spec.key).label;
+  n = n ?? { title: label0, body: MODE === 'demo' ? '이 칸의 해설은 결제 후 AI가 써요.' : '해설을 쓰는 중이에요…' };
   const chips = spec.facts.filter((f) => f.grade && !f.id.startsWith('zone:'));
   const uniq = [...new Map(chips.map((f) => [f.id, f])).values()];
   const showChips = spec.key !== 'gomin' && spec.key !== 'hanmadi' && spec.key !== 'majimak';
@@ -77,7 +75,7 @@ function section(spec, n, i) {
       <span class="r-head">${n.title === label ? "" : `<small>${esc(label)}</small>`}<strong>${esc(n.title)}</strong></span>
     </summary>
     <div class="r-body">
-      ${spec.key === 'olhae' ? yearsStrip(spec) : pictureOf(spec)}
+      ${spec.key === 'olhae' ? yearsStrip(spec) : P.metrics ? pictureOf(spec) : ''}
       ${showChips && uniq.length ? `<div class="r-chips">${uniq.map((f) => chip(f.grade, f.part)).join('')}</div>` : ''}
       ${paras(n.body)}
     </div>
@@ -88,26 +86,29 @@ function section(spec, n, i) {
 const MAP_KEYS = ['myung', 'jaebaek', 'hyungje', 'jeontaek', 'namnyeo', 'cheocheop', 'jilaek', 'cheoni', 'gwanrok', 'bumo', 'dongseo', 'chulnap', 'injung', 'nobok'];
 const MAP_LABEL = { myung: '미간 · 운명', jaebaek: '코 · 재물', hyungje: '눈썹 · 형제', jeontaek: '눈 · 집', namnyeo: '눈 밑 · 자녀', cheocheop: '눈꼬리 · 배우자', jilaek: '콧대 뿌리 · 건강', cheoni: '이마 옆 · 이동', gwanrok: '이마 · 명예', bumo: '이마 위 · 부모', dongseo: '광대 · 권세', chulnap: '입 · 녹봉', injung: '인중 · 수명', nobok: '턱 · 사람' };
 function faceMap() {
-  const r = reading.results;
+  const r = X.reading.results;
   const marks = MAP_KEYS.filter((k) => r[k] && r[k].grade !== 'unread').map((k) => ({ region: k, grade: r[k].grade }));
   const tagged = new Set([...marks.filter((m) => m.grade === 'bad').map((m) => m.region), ...['jaebaek', 'myung', 'nobok', 'chulnap', 'cheoni'].filter((k) => r[k]?.grade === 'good')].slice(0, 6));
   for (const m of marks) if (tagged.has(m.region)) m.label = MAP_LABEL[m.region];
-  return buildHighlight(SAMPLE.metrics, marks, { clipId: 'map' }).svg;
+  return buildHighlight(P.metrics, marks, { clipId: 'map' }).svg;
 }
 
 function render() {
-  const secs = brief.sections.map((spec) => ({ spec, n: NARRATIVE.sections.find((s) => s.key === spec.key) }));
-  const palaceChips = reading.palaces.filter((p) => p.grade !== 'unread' && p.key !== 'sangmo');
+  const { brief, reading, forms, lead } = X;
+  const age = P.birthYear ? P.thisYear - P.birthYear + 1 : null;
+  const name = P.name ? `${P.name}님` : '나';
+  const secs = brief.sections.map((spec) => ({ spec, n: NARRATIVE?.sections?.find((s) => s.key === spec.key) }));
+  const palaceChips = (reading?.palaces ?? []).filter((p) => p.grade !== 'unread' && p.key !== 'sangmo');
   document.querySelector('#app').innerHTML = `
-    <p class="r-mock">시안 · 본인 사진 5장 평균 · 해설은 예시</p>
+    ${MODE === 'sample' ? '<p class="r-mock">시안 · 예시 인물 · 해설은 예시</p>' : MODE === 'demo' ? '<p class="r-mock">결제 전 보기 · 해설은 결제 후 AI가 써요</p>' : ''}
     <header class="r-top">
       <p class="eyebrow">麻衣相法 · 相理衡眞 정밀 관상</p>
-      <h1 class="r-name">${esc(SAMPLE.name)}님의 관상</h1>
-      <p class="r-meta">${SAMPLE.birthYear}년생 · 남 · 세는 나이 ${age}세 · 이마 드러냄 ✓</p>
+      <h1 class="r-name">${esc(name)}의 관상</h1>
+      <p class="r-meta">${[P.birthYear ? `${P.birthYear}년생` : '', P.gender === 'm' ? '남' : P.gender === 'f' ? '여' : '', age ? `세는 나이 ${age}세` : '', P.forehead?.status === 'visible' ? '이마 드러냄 ✓' : ''].filter(Boolean).join(' · ')}</p>
     </header>
 
-    <section class="card r-eye">
-      <p class="r-eye-kicker">${esc(SAMPLE.name)}님의 대표 부위는 <b>${esc(lead.organName)}</b></p>
+    ${P.metrics ? `<section class="card r-eye">
+      <p class="r-eye-kicker">${esc(name)}의 대표 부위는 <b>${esc(lead.organName)}</b></p>
       <h2 class="r-eye-name">${esc(lead.name)}<span>${lead.hanja}</span></h2>
       <p class="r-eye-tag">${lead.tag} · ${esc(lead.shapeKo)}</p>
       <figure class="r-eye-pic">
@@ -129,36 +130,36 @@ function render() {
         </article>`).join('')}
         <article class="r-form pending"><small>귀</small><strong>고개 돌리기 스캔에서</strong><span>採聽官</span></article>
       </div>
-    </section>
+    </section>`
+      : ''}
 
-    <section class="card r-chart">
-      <p class="r-headline">${esc(NARRATIVE.sections[0].title)}</p>
+    ${P.metrics ? `<section class="card r-chart">
+      <p class="r-headline">${esc(NARRATIVE?.sections?.[0]?.title ?? '')}</p>
       <div class="r-svg">${faceMap()}</div>
       <p class="r-legend"><span class="good">● 복이 붙은 자리</span><span class="bad">● 조심할 자리</span><span class="mid">● 보통</span></p>
       <details class="r-table">
         <summary>관상도 자세히 보기</summary>
         <div class="r-chips">${palaceChips.map((p) => chip(p.grade, `${p.name} · ${p.domain}`)).join('')}</div>
       </details>
-    </section>
+    </section>` : ''}
 
     ${brief.worry ? `<section class="r-worry"><small>내가 적은 고민</small><p>“${esc(brief.worry)}”</p></section>` : ''}
 
     <nav class="card r-toc">
       <h2>목차</h2>
-      <ol>${secs.map(({ spec, n }, i) => `<li><a href="#s-${spec.key}"><span>${String(i + 1).padStart(2, '0')}</span>${esc(n.title)}</a></li>`).join('')}</ol>
+      <ol>${secs.map(({ spec, n }, i) => `<li><a href="#s-${spec.key}"><span>${String(i + 1).padStart(2, '0')}</span>${esc(n?.title ?? SECTIONS.find((x) => x.key === spec.key).label)}</a></li>`).join('')}</ol>
     </nav>
 
     ${secs.map(({ spec, n }, i) => section(spec, n, i)).join('')}
 
-    <section class="card r-note">
+    ${NARRATIVE?.followups ? `<section class="card r-note">
       <p class="r-note-from">관상쟁이의 쪽지</p>
       <p>다 읽었다면, 이런 것도 물어볼 수 있어요.</p>
       <ul class="r-follow">${NARRATIVE.followups.map((q) => `<li><button type="button">${esc(q)}<span>질문하기</span></button></li>`).join('')}</ul>
-    </section>
+    </section>` : ''}
 
     <div class="r-actions">
-      <button type="button" class="primary">공유 이미지 저장</button>
-      <button type="button">링크 복사</button>
+      <button type="button" class="primary" id="btn-copy">결과 링크 복사</button>
     </div>
     <p class="fine">『增補麻衣相法全編』·『相理衡眞』 권3의 전통 해석을 옮긴 풀이예요. 재미로 읽어 주세요.</p>
   `;
@@ -167,6 +168,61 @@ function render() {
       document.querySelector(a.getAttribute('href')).open = true;
     }),
   );
+  document.querySelector('#btn-copy')?.addEventListener('click', async () => {
+    await navigator.clipboard?.writeText(location.href).catch(() => {});
+    document.querySelector('#btn-copy').textContent = '복사했어요 · 이 링크로 언제든 다시 봐요';
+  });
 }
 
-render();
+const status = (t) => (document.querySelector('#app').innerHTML = `<div class="card r-wait"><p>${t}</p></div>`);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function main() {
+  const q = new URLSearchParams(location.search);
+  const order = q.get('order');
+  const token = q.get('token');
+  if (order && token) {
+    MODE = 'paid';
+    let local = null;
+    try {
+      local = JSON.parse(localStorage.getItem(`gs:order:${order}`) || 'null');
+    } catch {}
+    status('관상을 풀어 쓰는 중이에요… 1~2분 걸려요.<br><small>이마부터 턱까지, 원전을 한 줄씩 대 보는 중</small>');
+    for (let i = 0; ; i++) {
+      const r = await getResult(order, token).catch(() => ({ status: 'error' }));
+      if (r.status === 'done') {
+        NARRATIVE = r.narrative;
+        if (local) {
+          P = local;
+          X = prepare(local);
+        } else {
+          // 다른 기기: 측정값이 없으니 해설만 (그림 없이)
+          P = { name: r.brief.person?.name, birthYear: r.brief.person?.birthYear, gender: r.brief.person?.gender === '남' ? 'm' : r.brief.person?.gender === '여' ? 'f' : null, thisYear: r.brief.person?.thisYear, metrics: null };
+          X = { brief: r.brief, reading: null, forms: { all: [] }, lead: null };
+        }
+        return render();
+      }
+      if (r.status === 'failed') return status('해설을 만들지 못했어요. 결제는 자동으로 취소 요청돼요. 문의: 결과 링크를 보내 주세요.');
+      if (r.error === 'order') return status('주문을 찾지 못했어요. 링크를 다시 확인해 주세요.');
+      if (i > 90) return status('생각보다 오래 걸려요. 이 링크를 저장해 두고 잠시 뒤 다시 열어 주세요.');
+      await sleep(4000);
+    }
+  }
+  if (q.get('demo')) {
+    MODE = 'demo';
+    try {
+      P = JSON.parse(localStorage.getItem('gs:demo') || 'null');
+    } catch {}
+    if (!P) return status('먼저 첫 화면에서 사진을 찍어 주세요. <a href="./">처음으로</a>');
+    X = prepare(P);
+    NARRATIVE = null;
+    return render();
+  }
+  MODE = 'sample';
+  P = SAMPLE;
+  X = prepare(SAMPLE);
+  NARRATIVE = SAMPLE_NARRATIVE;
+  render();
+}
+
+main();

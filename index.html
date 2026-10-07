@@ -85,6 +85,17 @@
         <div id="relations" class="card"></div>
         <div id="unread" class="card"></div>
 
+        <div id="paid" class="card paid">
+          <p class="eyebrow">정밀 관상</p>
+          <h2>내 얼굴, 끝까지 풀어 읽기</h2>
+          <p>대표 부위와 오관의 형, 십이궁·삼정·오악, 올해부터 5년의 운, 요즘 얼굴빛까지. 원전을 근거로 AI가 <b>나에게 맞춰</b> 15칸으로 풀어 써요.</p>
+          <label>부를 이름 <small>(선택 · 별명도 좋아요)</small><input id="paid-name" maxlength="12" autocomplete="off" /></label>
+          <label>요즘 고민 <small>(선택 · 적으면 관상으로 답해요, 300자)</small><textarea id="paid-worry" maxlength="300" rows="3" placeholder="예: 회사에 남을지, 독립할지 고민이에요"></textarea></label>
+          <button id="btn-paid" class="primary">정밀 관상 받기</button>
+          <p id="paid-status" class="hint"></p>
+          <p class="fine">서버에는 판정 결과(길·평·흉과 원문)와 고민만 보내요. 사진·얼굴 좌표·비율값은 보내지 않아요.</p>
+        </div>
+
         <div id="contribute" class="card contribute" hidden>
           <p class="eyebrow">판정 기준을 함께 다듬어 주세요</p>
           <h2>측정값 기여하기</h2>

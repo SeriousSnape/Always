@@ -1,0 +1,10 @@
+# Supabase CLI 설정 (supabase link 뒤 supabase functions deploy)
+# 세 함수 모두 브라우저에서 anon 키 없이 부를 수 있게 JWT 검사를 끈다. 함수 안에서 주문 열쇠(token)로 확인한다.
+[functions.create-order]
+verify_jwt = false
+
+[functions.confirm-payment]
+verify_jwt = false
+
+[functions.get-result]
+verify_jwt = false
