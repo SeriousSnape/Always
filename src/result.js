@@ -3,6 +3,7 @@ import { readFace, yearlyFlow, zoneGrades } from './lib/reading.js';
 import { buildBrief, SECTIONS } from './lib/narrative.js';
 import { buildHighlight, zoneRegion } from './highlight.js';
 import { eyeTypeOf } from './lib/eyes.js';
+import { formsOf, imgOf } from './lib/forms.js';
 import { SAMPLE } from './sample/me.js';
 import NARRATIVE from './sample/narrative.json';
 
@@ -11,7 +12,9 @@ const reading = readFace(SAMPLE.metrics, opts);
 const yearly = yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear);
 const eyeR = eyeTypeOf(SAMPLE.metrics);
 const eye = { ...eyeR.best, traits: eyeR.traits };
-const brief = buildBrief(reading, yearly, SAMPLE, { eye });
+const forms = formsOf(SAMPLE.metrics, reading.results);
+const lead = { ...forms.lead.best, organName: forms.lead.name };
+const brief = buildBrief(reading, yearly, SAMPLE, { eye: { ...lead, name: `${lead.organName} · ${lead.name}`, shape: lead.says, verse: lead.says, verseKo: lead.reading, shapeKo: lead.shapeKo, traits: [] } });
 const age = SAMPLE.thisYear - SAMPLE.birthYear + 1;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -98,17 +101,28 @@ function render() {
     </header>
 
     <section class="card r-eye">
-      <p class="r-eye-kicker">${esc(SAMPLE.name)}님은</p>
-      <h2 class="r-eye-name">${esc(eye.name)}<span>${eye.hanja}</span></h2>
-      <p class="r-eye-tag">${eye.tag} · ${esc(eye.shapeKo)}</p>
+      <p class="r-eye-kicker">${esc(SAMPLE.name)}님의 대표 부위는 <b>${esc(lead.organName)}</b></p>
+      <h2 class="r-eye-name">${esc(lead.name)}<span>${lead.hanja}</span></h2>
+      <p class="r-eye-tag">${lead.tag} · ${esc(lead.shapeKo)}</p>
       <figure class="r-eye-pic">
-        <img src="eyes/${eye.key}.jpg" alt="『마의상법』의 ${esc(eye.name)} 그림" />
-        <figcaption>『마의상법』 원전 그림 · ${eye.hanja}</figcaption>
+        <img src="${imgOf(lead)}" alt="『마의상법』의 ${esc(lead.name)} 그림" />
+        <figcaption>『마의상법』 원전 그림 · ${lead.hanja}</figcaption>
       </figure>
-      <p class="r-eye-verse">“${esc(eye.verseKo)}”</p>
-      <p class="r-eye-reading">${esc(eye.reading)}</p>
-      <p class="r-eye-me">내 눈: ${eye.traits.map(esc).join(' · ')}</p>
-      <p class="r-eye-second">두 번째로 닮은 눈 · ${esc(eyeR.second.name)}</p>
+      <p class="r-eye-reading">${esc(lead.reading)}</p>
+      <p class="r-eye-second">한 관만 이루어져도 십 년을 귀하게 드러난다 — 『마의상법』</p>
+    </section>
+
+    <section class="r-forms">
+      <h2>나의 오관</h2>
+      <div class="r-forms-grid">
+        ${forms.all.map((f) => `<article class="r-form${f.organ === forms.lead.organ ? ' lead' : ''}">
+          <img src="${imgOf(f.best)}" alt="" />
+          <small>${esc(f.name)}</small>
+          <strong>${esc(f.best.name)}</strong>
+          <span>${f.best.hanja} · ${f.best.tag}</span>
+        </article>`).join('')}
+        <article class="r-form pending"><small>귀</small><strong>고개 돌리기 스캔에서</strong><span>採聽官</span></article>
+      </div>
     </section>
 
     <section class="card r-chart">

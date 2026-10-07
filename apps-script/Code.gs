@@ -6,8 +6,8 @@
  * 열 순서는 src/lib/contribute.js 의 METRIC_KEYS 와 같아야 한다(테스트로 확인).
  */
 
-var SCHEMA_VERSION = 1;
-var METRIC_KEYS = ["aspect","jaw","upper","middle","lower","eyeGap","eyeTilt","eyeSize","noseWidth","noseLength","mouthWidth","lipThickness","asym","browGap","browLen","browEye","foreheadW","bridgeDepth","philtrum","browOver","browOverR","browOverL","browEyeR","browEyeL","eyeAspect","eyeAspectR","eyeAspectL","eyeTiltR","eyeTiltL","mouthCorner","upperLip","lowerLip","chinW","foreheadTilt","browAsym","cheekProm","jianmenFull","tearFull","noseMidHeight"];
+var SCHEMA_VERSION = 2;
+var METRIC_KEYS = ["aspect","jaw","upper","middle","lower","eyeGap","eyeTilt","eyeSize","noseWidth","noseLength","mouthWidth","lipThickness","asym","browGap","browLen","browEye","foreheadW","bridgeDepth","philtrum","browOver","browOverR","browOverL","browEyeR","browEyeL","eyeAspect","eyeAspectR","eyeAspectL","eyeTiltR","eyeTiltL","mouthCorner","upperLip","lowerLip","chinW","foreheadTilt","browAsym","cheekProm","jianmenFull","tearFull","noseMidHeight","browArch","browSlope","browThick"];
 var AGE_BANDS = ['', '10대', '20대', '30대', '40대', '50대', '60대 이상'];
 var SHEET_NAME = 'raw';
 var DAILY_LIMIT_PER_DEVICE = 10; // 반복성 확인용으로 같은 기기에서 여러 번은 허용

@@ -5,10 +5,13 @@ import { readFace, yearlyFlow } from '../src/lib/reading.js';
 import { buildBrief, checkNarrative } from '../src/lib/narrative.js';
 import { SAMPLE } from '../src/sample/me.js';
 import { eyeTypeOf } from '../src/lib/eyes.js';
+import { formsOf } from '../src/lib/forms.js';
 
 const opts = { forehead: SAMPLE.forehead, gender: SAMPLE.gender };
-const eyeR = eyeTypeOf(SAMPLE.metrics);
-const brief = buildBrief(readFace(SAMPLE.metrics, opts), yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear), SAMPLE, { eye: { ...eyeR.best, traits: eyeR.traits } });
+const reading0 = readFace(SAMPLE.metrics, opts);
+const lead = formsOf(SAMPLE.metrics, reading0.results).lead;
+const L = { ...lead.best, name: `${lead.name} · ${lead.best.name}`, shape: lead.best.says, verse: lead.best.says, verseKo: lead.best.reading, traits: [] };
+const brief = buildBrief(reading0, yearlyFlow(SAMPLE.metrics, SAMPLE.birthYear, opts, SAMPLE.thisYear), SAMPLE, { eye: L });
 const sample = JSON.parse(readFileSync(new URL('../src/sample/narrative.json', import.meta.url)));
 
 test('예시 해설은 출력 검사를 통과한다', () => {
@@ -66,4 +69,11 @@ test('닮은 눈은 길한 뜻의 눈 가운데서만 고른다', () => {
     const r = eyeTypeOf(m);
     assert.ok(['long', 'bong', 'seobong', 'sang', 'u', 'gwi', 'sa'].includes(r.best.key));
   }
+});
+
+test('오관 형은 길한 형 가운데서만 고르고, 사진 5장 기준 대표는 코', () => {
+  const f = formsOf(SAMPLE.metrics, reading0.results);
+  assert.equal(f.lead.organ, 'nose');
+  assert.equal(f.lead.best.key, 'ho');
+  for (const o of f.all) assert.ok(o.best.tag);
 });

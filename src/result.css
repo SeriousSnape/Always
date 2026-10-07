@@ -176,3 +176,16 @@ main { padding-bottom: 32px; }
 .r-eye-reading { margin: 10px 0 0; font-size: 15px; color: var(--ink); text-wrap: pretty; }
 .r-eye-me { margin: 12px 0 0; font-size: 13px; color: var(--sub); }
 .r-eye-second { margin: 4px 0 0; font-size: 12.5px; color: var(--sub); }
+
+.r-forms { margin: 0 0 16px; }
+.r-forms h2 { font-size: 16px; margin: 0 0 8px; }
+.r-forms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.r-form { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.r-form img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 8px; margin-bottom: 4px; }
+.r-form small { color: var(--sub); font-size: 12px; }
+.r-form strong { font-family: 'Noto Serif KR', serif; font-size: 16px; }
+.r-form span { color: var(--gold); font-size: 12px; font-weight: 700; }
+.r-form.lead { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.r-form.pending { justify-content: center; color: var(--sub); border-style: dashed; min-height: 120px; }
+.r-form.pending strong { font-size: 14px; color: var(--sub); }
+.r-eye-pic img { max-height: 240px; object-fit: cover; }

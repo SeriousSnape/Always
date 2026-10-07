@@ -2,7 +2,7 @@
 // 받는 쪽: apps-script/Code.gs (구글 Apps Script → 구글 시트). 열 순서는 양쪽이 같아야 한다.
 import { BASE } from './physiognomy.js';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const METRIC_KEYS = Object.keys(BASE);
 export const AGE_BANDS = ['10대', '20대', '30대', '40대', '50대', '60대 이상'];
 

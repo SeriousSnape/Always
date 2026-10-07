@@ -16,6 +16,12 @@ const L = {
   glabella: 9,
 };
 
+// 눈썹 윗선·아랫선 (바깥 → 안쪽) — 형(形) 판정용
+const BROW = {
+  R: { up: [70, 63, 105, 66, 107], low: [46, 53, 52, 65, 55] },
+  L: { up: [300, 293, 334, 296, 336], low: [276, 283, 282, 295, 285] },
+};
+
 const PAIRS = [[33, 263], [133, 362], [105, 334], [129, 358], [61, 291], [234, 454], [172, 397]];
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -84,12 +90,28 @@ export function computeMetrics(landmarks, width, height) {
   // 눈썹 높이 좌우 차: 양수면 왼쪽(본인 기준) 눈썹이 높다
   const browAsym = (p[L.browR].y - p[L.browL].y) / eyeW;
   const zAt = (i) => zOf(i);
+  // 눈썹 모양: 굽음(가운데가 양끝 잇는 선보다 솟은 정도), 꼬리 올라감, 두께
+  const browShape = ({ up, low }) => {
+    const a = p[up[0]];
+    const b = p[up[up.length - 1]];
+    const len = dist(a, b);
+    const lineY = (x) => a.y + ((b.y - a.y) * (x - a.x)) / (b.x - a.x || 1e-6);
+    const arch = Math.max(...up.slice(1, -1).map((i) => lineY(p[i].x) - p[i].y)) / len;
+    const slope = (b.y - a.y) / len; // 안쪽(b)이 바깥(a)보다 아래면 양수 = 꼬리가 올라감
+    const thick = (dist(p[up[1]], p[low[1]]) + dist(p[up[2]], p[low[2]]) + dist(p[up[3]], p[low[3]])) / 3;
+    return { arch, slope, thick };
+  };
+  const bsR = browShape(BROW.R);
+  const bsL = browShape(BROW.L);
   const browEye = (p[L.lidR].y - p[L.browRLow].y + (p[L.lidL].y - p[L.browLLow].y)) / 2;
 
   return {
     aspect: faceH / faceW,
     // 인당(미간) 너비: 눈썹 안쪽 끝 사이
     browGap: dist(p[L.browRIn], p[L.browLIn]) / eyeW,
+    browArch: (bsR.arch + bsL.arch) / 2,
+    browSlope: (bsR.slope + bsL.slope) / 2,
+    browThick: (bsR.thick + bsL.thick) / 2 / eyeW,
     // 눈썹 길이: 눈 길이 대비
     browLen: browLen / eyeW,
     // 전택궁: 눈썹과 윗눈꺼풀 사이
@@ -198,6 +220,10 @@ export const BASE = {
   jianmenFull: [-0.105, 0.02],
   tearFull: [0.006, 0.01],
   noseMidHeight: [0.197, 0.03],
+  // 눈썹 모양: 평균은 표준 모델 값, 표준편차는 추정 — 보정 필요
+  browArch: [0.126, 0.04],
+  browSlope: [-0.172, 0.08],
+  browThick: [0.242, 0.05],
 };
 
 export const z = (m, k) => {
