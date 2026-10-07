@@ -12,7 +12,8 @@ import { buildPayload, sendPayload, ageBandOf, AGE_BANDS } from './lib/contribut
 import { SUPABASE, COLLECT_ON, SERVER_ON } from './config.js';
 import { prepare } from './lib/prepare.js';
 import { createOrder } from './paid.js';
-import { solveDepth, profileMetrics, quickYaw } from './lib/scan.js';
+import { solveDepth, profileMetrics, quickYaw, yawDeg, binFor, ANGLE_BINS } from './lib/scan.js';
+import { drawGuide, inFrame, thumb } from './scanview.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -104,14 +105,26 @@ if (store.get('consent')) {
   syncConsent();
 }
 
-// 태어난 해 (선택) — 유년운기에 쓴다
+// 생년월일시 (선택) — 유년운기(세는 나이)와 나중의 사주 연결에 쓴다. 시간은 모르면 비워 둔다.
 const THIS_YEAR = new Date().getFullYear();
-const yearOptions = Array.from({ length: THIS_YEAR - 14 - 1930 + 1 }, (_, i) => THIS_YEAR - 14 - i)
-  .map((y) => `<option value="${y}">${y}년</option>`)
-  .join('');
-$('#birth-year').insertAdjacentHTML('beforeend', yearOptions);
-if (state.birthYear) $('#birth-year').value = String(state.birthYear);
-$('#birth-year').addEventListener('change', (e) => setBirthYear(e.target.value));
+$('#birth-date').max = `${THIS_YEAR - 14}-12-31`;
+if (store.get('birthDate')) $('#birth-date').value = store.get('birthDate');
+if (store.get('birthTime')) $('#birth-time').value = store.get('birthTime');
+if (store.get('birthNoTime')) {
+  $('#birth-notime').checked = true;
+  $('#birth-time').disabled = true;
+}
+$('#birth-date').addEventListener('change', (e) => {
+  store.set('birthDate', e.target.value || null);
+  setBirthYear(e.target.value ? e.target.value.slice(0, 4) : '');
+});
+$('#birth-time').addEventListener('change', (e) => store.set('birthTime', e.target.value || null));
+$('#birth-notime').addEventListener('change', (e) => {
+  $('#birth-time').disabled = e.target.checked;
+  if (e.target.checked) $('#birth-time').value = '';
+  store.set('birthNoTime', e.target.checked);
+  store.set('birthTime', null);
+});
 
 function setBirthYear(v) {
   state.birthYear = v ? Number(v) : null;
@@ -135,11 +148,48 @@ const status = (t) => {
 };
 let stream = null;
 
+const overlay = $('#overlay');
+const frameEl = $('#face-frame');
+let live = null; // 미리보기 고리(얼굴 기준선 그리기)
+let lastLm = null;
+
 function stopCamera() {
+  live?.stop();
+  live = null;
   stream?.getTracks().forEach((t) => t.stop());
   stream = null;
   video.hidden = true;
+  overlay.hidden = true;
+  frameEl.hidden = true;
   $('#btn-shoot').hidden = true;
+}
+
+/** 카메라를 여는 동안 계속: 얼굴을 찾아 기준선을 그리고, 틀 안에 들어왔는지 표시 */
+function startPreview() {
+  const work = document.createElement('canvas');
+  let running = true;
+  let onFrame = null;
+  (async function loop() {
+    while (running) {
+      const W = video.videoWidth;
+      const H = video.videoHeight;
+      if (W && H) {
+        work.width = W;
+        work.height = H;
+        work.getContext('2d').drawImage(video, 0, 0, W, H);
+        const r = await detect(work).catch(() => null);
+        const lm = r && r.faces === 1 ? r.landmarks : null;
+        lastLm = lm;
+        drawGuide(overlay, lm, W, H);
+        const f = lm ? inFrame(lm, video, $('.stage')) : { ok: false };
+        frameEl.classList.toggle('ok', f.ok);
+        if (SHOW_ALL) window.__frame = f;
+        if (onFrame) await onFrame({ r, lm, frame: f, work, W, H });
+      }
+      await new Promise((res) => setTimeout(res, 50));
+    }
+  })();
+  return { stop: () => (running = false), set onFrame(fn) { onFrame = fn; } };
 }
 
 $('#btn-camera').addEventListener('click', async () => {
@@ -148,97 +198,116 @@ $('#btn-camera').addEventListener('click', async () => {
     video.srcObject = stream;
     await video.play();
     video.hidden = false;
+    overlay.hidden = false;
+    frameEl.hidden = false;
     canvas.hidden = true;
     $('#stage-empty').hidden = true;
     $('#btn-shoot').hidden = false;
+    $('#scan-guide').hidden = false;
+    $('#scan-say').textContent = '얼굴을 틀 안에 맞춰 주세요';
+    renderPano(new Map(), null);
+    live = startPreview();
     state.photoGps = null;
-    status('얼굴을 화면 가운데에 맞추고, 스캔 시작을 누른 뒤 안내대로 고개를 돌려 주세요.');
+    status('');
   } catch {
     status('카메라를 열 수 없어요. 사진 올리기를 이용해 주세요.');
   }
 });
 
-// 고개 돌리기 스캔: 정면 → 한쪽 → 반대쪽. 여러 각도의 얼굴 점으로 코 높이·콧대 곧음 같은 깊이를 직접 잰다.
-$('#btn-shoot').addEventListener('click', async () => {
+// 고개 돌리기 스캔: 정면 → 각도별 10칸(양쪽 6·12·18·24·30도). 같은 방향·같은 각도는 한 번만.
+// 여러 각도의 얼굴 점으로 코 높이·콧대 곧음 같은 깊이를 직접 잰다.
+function renderPano(shots, frontImg) {
+  // 화면은 거울처럼 뒤집혀 보이므로, 보이는 방향대로 + 각도 → 왼쪽
+  const order = [...ANGLE_BINS].sort((a, b) => b - a);
+  const tile = (deg) => {
+    const img = shots.get(deg);
+    return `<li class="${img ? 'got' : ''}">${img ? `<img src="${img}" alt="">` : ''}<b>${Math.abs(deg)}°</b></li>`;
+  };
+  const half = order.length / 2;
+  $('#pano').innerHTML = [
+    ...order.slice(0, half).map(tile),
+    `<li class="front${frontImg ? ' got' : ''}">${frontImg ? `<img src="${frontImg}" alt="">` : ''}<b>정면</b></li>`,
+    ...order.slice(half).map(tile),
+  ].join('');
+  $('#scan-count').textContent = `각도 ${shots.size}/10장`;
+}
+
+$('#btn-shoot').addEventListener('click', () => {
+  if (!live) return;
   const btn = $('#btn-shoot');
   btn.disabled = true;
-  $('#scan-guide').hidden = false;
   const say = (t) => ($('#scan-say').textContent = t);
-  const mark = (id) => $(id).classList.add('done');
-  const work = document.createElement('canvas');
-  const wctx = work.getContext('2d');
-  const W = video.videoWidth;
-  const H = video.videoHeight;
-  work.width = W;
-  work.height = H;
   const frontal = [];
   const turned = [];
-  let best = null; // 가장 정면인 장면(판정·이마·기색용 화면)
-  let step = 'front';
-  let dir = 0;
-  let maxA = 0;
-  let maxB = 0;
+  const shots = new Map(); // 각도 → 작은 사진
+  let frontImg = null;
+  let firstSide = 0;
   const t0 = performance.now();
-  say('정면을 보고 잠깐 멈춰요');
-  while (performance.now() - t0 < 25000) {
-    wctx.drawImage(video, 0, 0, W, H);
-    const r = await detect(work).catch(() => null);
-    if (r && r.faces === 1) {
-      const yaw = quickYaw(r.landmarks);
-      $('#scan-dot').style.left = `${Math.max(2, Math.min(98, 50 + yaw * 120))}%`;
-      const f = { landmarks: r.landmarks, w: W, h: H, expression: r.expression };
-      if (Math.abs(yaw) < 0.035) {
-        if (frontal.length < 8) frontal.push(f);
-        if (!best || Math.abs(yaw) < best.yaw) {
-          best = { yaw: Math.abs(yaw), frame: f };
-          ctx.canvas.width = W;
-          ctx.canvas.height = H;
-          ctx.drawImage(work, 0, 0);
-        }
-      } else if (Math.abs(yaw) > 0.06 && Math.abs(yaw) < 0.4) {
-        turned.push(f);
-      }
-      if (step === 'front' && frontal.length >= 6) {
-        step = 'a';
-        mark('#sc-front');
-        say('천천히 한쪽으로 고개를 돌려요');
-      } else if (step === 'a' && Math.abs(yaw) > 0.06) {
-        dir = dir || Math.sign(yaw);
-        if (Math.sign(yaw) === dir) maxA = Math.max(maxA, Math.abs(yaw));
-        if (maxA > 0.16) {
-          step = 'b';
-          mark('#sc-a');
-          say('좋아요. 이번엔 반대쪽으로 천천히');
-        }
-      } else if (step === 'b' && Math.sign(yaw) === -dir) {
-        maxB = Math.max(maxB, Math.abs(yaw));
-        if (maxB > 0.16) {
-          mark('#sc-b');
-          step = 'done';
-          break;
-        }
-      }
+  say('틀 안에서 정면을 보고 잠깐 멈춰요');
+  renderPano(shots, null);
+
+  const finish = async (complete) => {
+    live.onFrame = null;
+    // 판정·이마·기색은 가장 정면인 장면으로
+    const best = frontal.reduce((a, f) => (Math.abs(f.deg) < Math.abs(a.deg) ? f : a), frontal[0]);
+    stopCamera();
+    btn.disabled = false;
+    if (!best || frontal.length < 3) return status('정면 얼굴을 충분히 잡지 못했어요. 밝은 곳에서 다시 해 주세요.');
+    canvas.width = best.W;
+    canvas.height = best.H;
+    ctx.drawImage(best.img, 0, 0);
+    let scan = null;
+    const left = turned.filter((f) => f.deg < 0).length;
+    const right = turned.filter((f) => f.deg > 0).length;
+    if (left >= 2 && right >= 2) {
+      const solved = solveDepth(frontal, turned);
+      const angles = solved?.angles ?? [];
+      if (solved && Math.min(...angles) < -10 && Math.max(...angles) > 10) scan = profileMetrics(solved);
     }
-    await new Promise((res) => setTimeout(res, 60));
-  }
-  stopCamera();
-  $('#scan-guide').hidden = true;
-  btn.disabled = false;
-  if (frontal.length < 3) return status('정면 얼굴을 충분히 잡지 못했어요. 밝은 곳에서 다시 해 주세요.');
-  let scan = null;
-  if (step === 'done' && turned.length >= 6) {
-    const solved = solveDepth(frontal, turned);
-    const angles = solved?.angles ?? [];
-    // 양쪽으로 12도 이상 돌린 장면이 있어야 믿는다
-    if (solved && Math.min(...angles) < -12 && Math.max(...angles) > 12) scan = profileMetrics(solved);
-  }
-  await finishAnalysis(
-    frontal.map((f) => ({ landmarks: f.landmarks, faces: 1, expression: f.expression })),
-    W,
-    H,
-    scan,
-  );
-  if (!scan) status('고개 돌리기를 끝까지 못 해서 정면만으로 봤어요. 옆모습으로 보는 코의 형 등은 빠졌어요.');
+    await finishAnalysis(
+      frontal.map((f) => ({ landmarks: f.landmarks, faces: 1, expression: f.expression })),
+      best.W,
+      best.H,
+      scan,
+    );
+    if (!scan) status('양쪽으로 충분히 돌리지 못해서 정면만으로 봤어요. 옆모습으로 보는 코의 형 등은 빠졌어요.');
+    else if (!complete) status(`각도 ${shots.size}/10장으로 봤어요.`);
+  };
+
+  live.onFrame = async ({ r, lm, frame, work, W, H }) => {
+    if (performance.now() - t0 > 40000) return finish(false);
+    if (!lm) return say('얼굴이 안 보여요. 틀 안으로 들어와 주세요');
+    const deg = yawDeg(quickYaw(lm));
+    const f = { landmarks: lm, w: W, h: H, expression: r.expression, deg };
+    // 1) 정면: 틀 안에서 고개를 거의 안 돌린 장면 6장
+    if (frontal.length < 6) {
+      if (!frame.ok) return say(frame.far ? '조금 더 가까이 와 주세요' : '이마부터 턱까지 틀 안에 맞춰 주세요');
+      if (Math.abs(deg) > 3) return say('정면을 봐 주세요');
+      const img = document.createElement('canvas');
+      img.width = W;
+      img.height = H;
+      img.getContext('2d').drawImage(work, 0, 0);
+      frontal.push({ ...f, img, W, H });
+      if (frontal.length === 6) {
+        frontImg = thumb(work, lm, W, H);
+        renderPano(shots, frontImg);
+        say('좋아요! 이제 천천히 한쪽으로 고개를 돌려요');
+      }
+      return;
+    }
+    // 2) 각도별 칸: 비어 있는 칸의 각도에 들어오면 한 장
+    const bin = binFor(deg, new Set(shots.keys()));
+    if (bin !== null) {
+      shots.set(bin, thumb(work, lm, W, H));
+      turned.push(f);
+      renderPano(shots, frontImg);
+      if (!firstSide) firstSide = Math.sign(bin);
+    }
+    const side = (sg) => ANGLE_BINS.filter((b) => Math.sign(b) === sg && !shots.has(b)).length;
+    if (shots.size === ANGLE_BINS.length) return finish(true);
+    if (firstSide && side(firstSide) === 0) say('이번엔 반대쪽으로 천천히 돌려요');
+    else if (firstSide) say(`같은 쪽으로 조금 더 천천히 (${side(firstSide)}칸 남음)`);
+  };
 });
 
 $('#file').addEventListener('change', async (e) => {
@@ -482,11 +551,12 @@ function renderYearly() {
     box.innerHTML = `
       <p class="eyebrow">유년운기(流年運氣) · 麻衣 p29~31</p>
       <h2>올해 내 얼굴의 어느 자리가 운을 맡고 있을까?</h2>
-      <p>원전은 나이마다 운을 맡는 얼굴 자리를 정해 두었어요(1~14세 귀, 15세 이마, 28세 인당, 41세 산근, 48세 준두, 60세 입, 71세 지각…). 태어난 해를 고르면 올해와 앞으로 4년을 읽어 드려요.</p>
-      <label>태어난 해 <select id="yearly-birth"><option value="">선택</option>${yearOptions}</select></label>`;
+      <p>원전은 나이마다 운을 맡는 얼굴 자리를 정해 두었어요(1~14세 귀, 15세 이마, 28세 인당, 41세 산근, 48세 준두, 60세 입, 71세 지각…). 생년월일을 넣으면 올해와 앞으로 4년을 읽어 드려요.</p>
+      <label>생년월일 <input id="yearly-birth" type="date" min="1930-01-01" max="${THIS_YEAR - 14}-12-31" /></label>`;
     $('#yearly-birth').addEventListener('change', (e) => {
-      $('#birth-year').value = e.target.value;
-      setBirthYear(e.target.value);
+      $('#birth-date').value = e.target.value;
+      store.set('birthDate', e.target.value || null);
+      setBirthYear(e.target.value ? e.target.value.slice(0, 4) : '');
     });
     return;
   }
@@ -508,9 +578,10 @@ function renderYearly() {
       .filter((f, i) => f.area !== flow[i].area)
       .map((f) => `<p class="next"><b>${f.year}년부터 ${f.area}</b> ${chip(f.grade)} — ${f.look}${f.refs?.[0] ? ` · <q lang="zh-Hant">${f.refs[0].q}</q> <cite>${f.refs[0].s}</cite>` : ''}</p>`)
       .join('')}
-    <button class="link" id="btn-change-year">태어난 해 바꾸기</button>`;
+    <button class="link" id="btn-change-year">생년월일 바꾸기</button>`;
   $('#btn-change-year').addEventListener('click', () => {
-    $('#birth-year').value = '';
+    $('#birth-date').value = '';
+    store.set('birthDate', null);
     setBirthYear('');
   });
 }

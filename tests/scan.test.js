@@ -55,3 +55,15 @@ test('정면 한 장 깊이(시작값)보다 스캔이 정답에 가깝다', () 
   const err = (m) => Math.abs(m.scanNoseHeight - truth.scanNoseHeight) + Math.abs(m.scanRadix - truth.scanRadix);
   assert.ok(err(profileMetrics(r)) < err(profileMetrics(start)) / 3);
 });
+
+test('각도별 칸: 같은 방향·같은 각도는 한 번만, 각도 대응표는 표준 모델과 맞다', async () => {
+  const { binFor, yawDeg, quickYaw, ANGLE_BINS } = await import('../src/lib/scan.js');
+  const filled = new Set();
+  for (const d of [5.5, 6.2, 6.8, -6, 11, 12.5, -30, 29]) {
+    const b = binFor(d, filled);
+    if (b !== null) filled.add(b);
+  }
+  assert.deepEqual([...filled].sort((a, b) => a - b), [-30, -6, 6, 12, 30]);
+  assert.equal(ANGLE_BINS.length, 10);
+  for (const d of [10, 20, 30]) assert.ok(Math.abs(yawDeg(quickYaw(frame(d).landmarks)) - d) < 1.5);
+});

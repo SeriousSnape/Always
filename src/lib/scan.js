@@ -156,3 +156,33 @@ export function quickYaw(lm) {
   const r = lm[454].x;
   return (nose - (l + r) / 2) / Math.abs(r - l);
 }
+
+// quickYaw → 고개 각도(도). 표준 3D 얼굴 모델로 잰 대응표(사람마다 코 높이에 따라 ±몇 도 차이).
+const YAW_TABLE = [[0, 0], [0.057, 5], [0.114, 10], [0.173, 15], [0.235, 20], [0.302, 25], [0.373, 30], [0.453, 35], [0.543, 40]];
+export function yawDeg(y) {
+  const a = Math.abs(y);
+  for (let i = 1; i < YAW_TABLE.length; i++) {
+    const [y0, d0] = YAW_TABLE[i - 1];
+    const [y1, d1] = YAW_TABLE[i];
+    if (a <= y1) return Math.sign(y) * (d0 + ((a - y0) / (y1 - y0)) * (d1 - d0));
+  }
+  return Math.sign(y) * 40;
+}
+
+// 각도별 10칸: 양쪽 6·12·18·24·30도. 같은 방향·같은 각도는 한 번만 찍는다.
+export const ANGLE_BINS = [-30, -24, -18, -12, -6, 6, 12, 18, 24, 30];
+export const BIN_TOL = 2.5;
+/** 지금 각도가 비어 있는 칸에 들어가면 그 칸 */
+export function binFor(deg, filled) {
+  return ANGLE_BINS.find((b) => !filled.has(b) && Math.abs(deg - b) <= BIN_TOL) ?? null;
+}
+
+// 얼굴 윤곽(바깥선)과 '얼굴 그리기 기준선' — 세로 중심선, 눈선, 눈썹선, 코밑선, 입선
+export const GUIDE = {
+  oval: [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109, 10],
+  mid: [10, 151, 9, 8, 168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 164, 0, 11, 12, 13, 14, 15, 16, 17, 18, 200, 199, 175, 152],
+  eyes: [234, 33, 168, 263, 454],
+  brows: [127, 70, 105, 9, 334, 300, 356],
+  noseBase: [132, 98, 2, 327, 361],
+  mouth: [172, 61, 0, 291, 397],
+};
