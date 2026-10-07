@@ -3,7 +3,7 @@ import { readFace, yearlyFlow, zoneGrades } from './lib/reading.js';
 import { buildBrief, SECTIONS } from './lib/narrative.js';
 import { buildHighlight, zoneRegion } from './highlight.js';
 import { eyeTypeOf } from './lib/eyes.js';
-import { formsOf, imgOf } from './lib/forms.js';
+import { formsOf, imgOf, badFormsOf } from './lib/forms.js';
 import { SAMPLE } from './sample/me.js';
 import NARRATIVE from './sample/narrative.json';
 
@@ -14,7 +14,7 @@ const eyeR = eyeTypeOf(SAMPLE.metrics);
 const eye = { ...eyeR.best, traits: eyeR.traits };
 const forms = formsOf(SAMPLE.metrics, reading.results);
 const lead = { ...forms.lead.best, organName: forms.lead.name };
-const brief = buildBrief(reading, yearly, SAMPLE, { eye: { ...lead, name: `${lead.organName} · ${lead.name}`, shape: lead.says, verse: lead.says, verseKo: lead.reading, shapeKo: lead.shapeKo, traits: [] } });
+const brief = buildBrief(reading, yearly, SAMPLE, { badForms: badFormsOf(SAMPLE.metrics), eye: { ...lead, name: `${lead.organName} · ${lead.name}`, shape: lead.says, verse: lead.says, verseKo: lead.reading, shapeKo: lead.shapeKo, traits: [] } });
 const age = SAMPLE.thisYear - SAMPLE.birthYear + 1;
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -49,7 +49,8 @@ function pictureOf(spec) {
   const seen = new Set();
   for (const f of spec.facts) {
     if (!f.grade) continue;
-    const region = f.id.startsWith('zone:') ? zoneRegion(f.part.split(': ')[1] ?? '') : f.id;
+    const FORM_REGION = { brow: 'hyungje', eye: 'jeontaek', nose: 'jaebaek', mouth: 'chulnap' };
+    const region = f.id.startsWith('zone:') ? zoneRegion(f.part.split(': ')[1] ?? '') : f.id.startsWith('form:') ? FORM_REGION[f.id.split(':')[1]] : f.id;
     if (!region || seen.has(region) || region === 'sangmo') continue;
     seen.add(region);
     marks.push({ region, grade: f.grade, label: SHORT[f.id] ?? (f.id.startsWith('zone:') ? f.part.split(' ')[0] : null) });

@@ -45,7 +45,7 @@ const factOf = (id, j) => ({
  * @param {Array} yearly yearlyFlow() 결과
  * @param {{birthYear:number, gender:'m'|'f'|null, worry?:string, thisYear:number}} who
  */
-export function buildBrief(reading, yearly, who, { eye = null } = {}) {
+export function buildBrief(reading, yearly, who, { eye = null, badForms = [] } = {}) {
   const all = {};
   for (const [k, j] of Object.entries(reading.results)) {
     if (j.grade !== 'unread') all[k] = factOf(k, j);
@@ -70,11 +70,18 @@ export function buildBrief(reading, yearly, who, { eye = null } = {}) {
       ],
     };
   }
+  // 흉한 형(오관 형 판정) — 쓴소리 칸에 원문·직역 그대로
+  for (const b of badForms) {
+    all[`form:${b.organ}:${b.key}`] = {
+      id: `form:${b.organ}:${b.key}`, part: `${b.organName}의 형: ${b.name}(${b.hanja}, ${b.tag})`, grade: 'bad',
+      look: `${b.organName}이 원전 그림의 ${b.name}과 닮았다`, quotes: [{ q: b.q, s: `麻衣 ${b.page}`, t: b.t }],
+    };
+  }
   const judged = Object.values(all).filter((f) => f.grade);
   const pick = (spec) => {
     if (spec === 'bad') return [...judged.filter((f) => f.grade === 'bad'), all.method];
     if (spec === 'good') return judged.filter((f) => f.grade === 'good' && f.id !== 'eye');
-    if (spec === 'all') return judged.filter((f) => f.id !== 'eye');
+    if (spec === 'all') return judged.filter((f) => f.id !== 'eye' && !f.id.startsWith('form:'));
     if (spec === 'summary') {
       const s = reading.summary;
       return [...judged.filter((f) => f.id === 'eye' || f.id === s.best?.key || f.id === s.worst?.key || f.id === 'gamchal' || f.id === 'jaebaek'), all.method];

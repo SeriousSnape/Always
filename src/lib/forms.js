@@ -124,6 +124,74 @@ export const ORGANS = {
   },
 };
 
+// ── 흉한 형 (쓴소리 칸용) ──
+// how: 'front' 정면 사진으로 잰다 / 'scan' 고개 돌리기 스캔(옆모습·깊이)이 있어야 / 'image' 털결·주름처럼 이미지 분석을 더 만들어야
+//      / 'never' 빛깔·눈빛 등 사진으로 믿을 수 없음
+// p 가 있으면 '좋은 형까지 포함해 가장 가까운 형'일 때만, rule 이 있으면 그 조건일 때 걸린다.
+// q 는 측정한 조건까지만 자른 원문, t 는 직역(흉은 바꾸지 않고 그대로 싣는다).
+export const BAD_FORMS = {
+  brow: [
+    { key: 'gyoga', hanja: '交加眉', name: '엇갈린 눈썹', tag: '貧賤', page: 'p70', how: 'front',
+      rule: (m) => z(m, 'browGap') < -1.5, q: '交加', t: '(두 눈썹이) 맞닿아 엇갈리면 가난하고 천하다.' },
+    { key: 'gwi', hanja: '鬼眉', name: '귀신 눈썹', tag: '賊盜', page: 'p70', how: 'front',
+      rule: (m) => z(m, 'browThick') > 1 && z(m, 'browEye') < -1.2, q: '眉粗壓眼', t: '눈썹이 굵게 눈을 누르면 마음이 착하지 않고, 도둑질로 평생을 보낸다.' },
+    { key: 'palja', hanja: '八字眉', name: '여덟 팔(八) 자 눈썹', tag: '主孤', page: 'p72', how: 'front', p: [0, 0, -1.9, 0],
+      q: '頭疏尾散壓奸門 到老數妻結不緣', t: '머리는 성글고 꼬리는 흩어져 간문을 누르니, 늙도록 아내를 여럿 두어도 인연을 맺지 못한다.' },
+    { key: 'cheomdo', hanja: '尖刀眉', name: '뾰족한 칼 눈썹', tag: '凶暴', page: 'p71', how: 'image', q: '眉粗惡煞 心奸險', t: '눈썹이 거칠고 사나우면 마음이 간사하고 험하다.' },
+    { key: 'sosan', hanja: '疏散眉', name: '성기고 흩어진 눈썹', tag: '財帛盈耗', page: 'p71', how: 'image', q: '眉短疏散', t: '눈썹이 짧고 성기게 흩어지면 재물이 찼다 줄었다 한다.' },
+    { key: 'hwangbak', hanja: '黃薄眉', name: '누렇고 엷은 눈썹', tag: '破敗', page: 'p71', how: 'never', q: '黃薄', t: '눈썹이 누렇고 엷으면 깨지고 무너진다.' },
+  ],
+  eye: [
+    { key: 'bidulgi', hanja: '鴿眼', name: '비둘기 눈', tag: '貪淫', page: 'p86', how: 'front', p: [-1.6, -1.6, 0],
+      q: '鴿眼睛… 小圓', t: '비둘기 눈은 (눈동자가) 작고 둥글다 — 원전은 음란함을 탐한다(貪淫)고 한다.' },
+    { key: 'mal', hanja: '馬眼', name: '말의 눈', tag: '勞碌', page: 'p85', how: 'image', q: '皮寬三角睛露', t: '눈꺼풀이 늘어져 세모지고 눈동자가 드러나면, 종일 일해도 끝내 가난하고 고생한다.' },
+    { key: 'mulgogi', hanja: '魚眼', name: '물고기 눈', tag: '主夭', page: 'p85', how: 'scan', q: '睛露', t: '눈동자가 튀어나오면 일찍 죽는다.' },
+    { key: 'baem', hanja: '蛇眼', name: '뱀의 눈', tag: '狠毒', page: 'p86', how: 'scan', q: '睛紅圓露', t: '눈동자가 붉고 둥글게 드러나면 마음이 독하다.' },
+    { key: 'yang', hanja: '羊眼', name: '양의 눈', tag: '半世破祖', page: 'p85', how: 'never', q: '黑淡微黃 神不清', t: '검은자가 엷고 누르며 신이 맑지 않으면 반평생에 조상의 업을 깨뜨린다.' },
+    { key: 'dwaeji', hanja: '猪眼', name: '돼지 눈', tag: '凶惡', page: 'p86', how: 'never', q: '白昏睛露黑朦朧', t: '흰자가 흐리고 검은자가 몽롱하면 흉악하다.' },
+    { key: 'neukdae', hanja: '狼目', name: '이리 눈', tag: '主兇', page: 'p87', how: 'never', q: '狼目睛黃', t: '눈동자가 누르면 흉하다.' },
+  ],
+  nose: [
+    { key: 'bungeo', hanja: '鯽魚鼻', name: '붕어 코', tag: '貧賤', page: 'p95', how: 'front', p: [-1.6, -1.6, -1],
+      q: '小準頭', t: '코끝이 작으면 가난하고 천하다.' },
+    { key: 'gobong', hanja: '孤峯鼻', name: '외로운 봉우리 코', tag: '孤獨', page: 'p96', how: 'front',
+      rule: (m) => z(m, 'noseMidHeight') > 1.5 && z(m, 'cheekProm') < -1.2, q: '孤峯', t: '코만 홀로 솟고 둘레가 낮으면 외롭다.' },
+    { key: 'maejuri', hanja: '鷹嘴鼻', name: '매부리코', tag: '巨惡', page: 'p95', how: 'scan', q: '準頭尖 又如鷹嘴', t: '코끝이 뾰족하고 매 부리 같으면 크게 악하다.' },
+    { key: 'geombong', hanja: '劍鋒鼻', name: '칼날 코', tag: '主孤', page: 'p96', how: 'scan', q: '鼻梁露脊如刀', t: '콧대가 칼등처럼 드러나면 형제와 인연이 없고 외롭다.' },
+    { key: 'samman', hanja: '三彎三曲鼻', name: '세 번 굽은 코', tag: '主孤', page: 'p95', how: 'scan', q: '鼻有三彎', t: '코가 세 번 굽으면 외롭고 눈물이 마르지 않는다.' },
+    { key: 'nojo', hanja: '露竈鼻', name: '콧구멍이 드러난 코', tag: '主貧', page: 'p97', how: 'scan', q: '孔大鼻高', t: '콧구멍이 크게 드러나면 집안 살림이 어렵고 고생이 많다.' },
+  ],
+  mouth: [
+    { key: 'bungeo', hanja: '鯽魚口', name: '붕어 입', tag: '主貧', page: 'p105', how: 'front', p: [-1.9, -0.5, 0],
+      q: '鯽魚口小', t: '붕어 입처럼 작으면 평생 가난하다.' },
+    { key: 'megi', hanja: '鮎魚口', name: '메기 입', tag: '主賤', page: 'p105', how: 'front', p: [1.4, -1.2, -1.7],
+      q: '鮎魚口闊角低', t: '메기 입처럼 넓고 입꼬리가 처지면 천하다.' },
+    { key: 'yang', hanja: '羊口', name: '양의 입', tag: '主剋貧', page: 'p104', how: 'front', p: [-0.6, -1.8, 0],
+      q: '尖 兩唇又薄', t: '(입이) 뾰족하고 두 입술이 얇으면 가난하다.' },
+    { key: 'dwaeji', hanja: '猪口', name: '돼지 입', tag: '主剋貧', page: 'p104', how: 'image', q: '上唇長粗闊 下唇尖', t: '윗입술이 길고 거칠며 아랫입술이 뾰족하면 가난하다.' },
+    { key: 'chwihwa', hanja: '吹火口', name: '불 부는 입', tag: '貧夭', page: 'p104', how: 'never', q: '口如吹火開不收', t: '입이 불을 부는 듯 벌어져 다물어지지 않으면 가난하고 일찍 죽는다.' },
+    { key: 'jumun', hanja: '皺紋口', name: '주름 입', tag: '主孤', page: 'p104', how: 'image', q: '唇上皺紋', t: '입술 위에 주름이 지면 외롭다.' },
+  ],
+  ear: [],
+};
+
+/** 정면으로 잰 흉한 형 중 걸린 것 (rule 형, 또는 좋은 형까지 포함해 가장 가까운 p 형) */
+export function badFormsOf(m) {
+  const hits = [];
+  for (const [organ, list] of Object.entries(BAD_FORMS)) {
+    const o = ORGANS[organ];
+    const s = o.shape ? o.shape(m) : null;
+    const dist = (p) => Math.hypot(...p.map((v, i) => s[i] - v));
+    const nearestGood = s ? Math.min(...o.types.map((t) => dist(t.p))) : Infinity;
+    for (const b of list) {
+      if (b.how !== 'front') continue;
+      const hit = b.rule ? b.rule(m) : s && dist(b.p) < nearestGood;
+      if (hit) hits.push({ ...b, organ, organName: o.name });
+    }
+  }
+  return hits;
+}
+
 const ORDER = ['eye', 'brow', 'nose', 'mouth', 'ear'];
 // 대표 관 고르기: 그 관에 딸린 판정 중 길한 것의 수 → 같으면 達磨 비중(눈 5, 나머지 2)
 const ORGAN_JUDGE = {

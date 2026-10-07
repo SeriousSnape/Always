@@ -77,3 +77,23 @@ test('오관 형은 길한 형 가운데서만 고르고, 사진 5장 기준 대
   assert.equal(f.lead.best.key, 'ho');
   for (const o of f.all) assert.ok(o.best.tag);
 });
+
+test('흉한 형은 쓴소리 칸 재료가 되고, 직역을 빼면 검사에 걸린다', async () => {
+  const { BAD_FORMS } = await import('../src/lib/forms.js');
+  const b = { ...BAD_FORMS.mouth.find((x) => x.key === 'megi'), organ: 'mouth', organName: '입' };
+  const br = buildBrief(reading0, [], SAMPLE, { badForms: [b] });
+  const ss = br.sections.find((s) => s.key === 'sseunsori');
+  assert.ok(ss.facts.some((f) => f.id === 'form:mouth:megi' && f.grade === 'bad'));
+  const probs = checkNarrative(sample, br).problems.map((p) => p.why).join('\n');
+  assert.match(probs, new RegExp(b.t.slice(0, 10)));
+});
+
+test('흉한 형은 측정 방식이 정해져 있고, 정면으로 재는 것만 지금 판정한다', async () => {
+  const { BAD_FORMS, badFormsOf } = await import('../src/lib/forms.js');
+  for (const list of Object.values(BAD_FORMS)) for (const b of list) {
+    assert.ok(['front', 'scan', 'image', 'never'].includes(b.how), b.key);
+    assert.ok(b.q && b.t, b.key);
+    if (b.how === 'front') assert.ok(b.p || b.rule, b.key);
+  }
+  assert.deepEqual(badFormsOf(SAMPLE.metrics), []);
+});
