@@ -77,9 +77,6 @@
     <circle cx="167" cy="207.6" r="3.2" fill="#2b2118" stroke="none"/>
     <circle cx="134" cy="206.4" r="0.9" fill="#fbf7ee" stroke="none"/>
     <circle cx="168" cy="206.4" r="0.9" fill="#fbf7ee" stroke="none"/>
-    <!-- 윗눈꺼풀 선(지그시 웃는 눈매) -->
-    <path d="M121 206 q 12 -9 24 -1" fill="none" stroke-width="2.2"/>
-    <path d="M155 205 q 12 -8 24 1" fill="none" stroke-width="2.2"/>
     <!-- 눈가 웃음 주름 -->
     <path d="M180 205 l 5 -2 M180 209 l 5 2 M120 205 l -5 -2 M120 209 l -5 2" fill="none" stroke-width="1"/>
 
