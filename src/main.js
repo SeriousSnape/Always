@@ -974,6 +974,8 @@ $('#btn-paid').addEventListener('click', async () => {
     name: $('#paid-name').value.trim().slice(0, 12),
     worry: $('#paid-worry').value.trim().slice(0, 300),
     birthYear: state.birthYear ?? null,
+    birthDate: store.get('birthDate') ?? null,
+    birthTime: store.get('birthNoTime') ? null : store.get('birthTime') ?? null,
     gender: state.gender ?? null,
     thisYear: THIS_YEAR,
     metrics: state.face.metrics,

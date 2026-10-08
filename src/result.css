@@ -192,3 +192,14 @@ main { padding-bottom: 32px; }
 .r-wait { text-align: center; padding: 40px 20px; }
 .r-wait small { color: var(--sub); }
 #payment-method, #agreement { margin-bottom: 8px; }
+
+.r-joseon { text-align: center; padding: 22px 18px; }
+.r-joseon-pic { margin: 14px auto 0; max-width: 300px; border-radius: 14px; overflow: hidden; box-shadow: 0 6px 18px rgb(0 0 0 / 0.12); }
+.r-joseon-pic svg { display: block; width: 100%; height: auto; }
+.r-joseon-why { font-size: 12.5px; color: var(--sub); margin: 10px 0 0; }
+.r-joseon h3 { margin: 18px 0 2px; font-family: 'Noto Serif KR', serif; }
+.r-thennow { list-style: none; padding: 0; margin: 10px 0 0; text-align: left; display: grid; gap: 8px; }
+.r-thennow li { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); }
+.r-thennow small { color: var(--gold); font-weight: 800; }
+.r-thennow .then { color: var(--sub); font-size: 13.5px; }
+.r-thennow .now { font-weight: 700; font-size: 15px; }

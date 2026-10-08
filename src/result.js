@@ -6,6 +6,8 @@ import { SECTIONS } from './lib/narrative.js';
 import { buildHighlight, zoneRegion } from './highlight.js';
 import { imgOf } from './lib/forms.js';
 import { prepare } from './lib/prepare.js';
+import { joseonScene } from './joseon-art.js';
+import { GROUP_NAME } from './lib/joseon.js';
 import { getResult } from './paid.js';
 import { localNarrative } from './lib/localNarrative.js';
 import { SAMPLE } from './sample/me.js';
@@ -94,6 +96,29 @@ function faceMap() {
   return buildHighlight(P.metrics, marks, { clipId: 'map' }).svg;
 }
 
+// 조선시대의 나: 그림 → 그때의 삶 → 오늘로 옮기면
+function joseonCard(j, name) {
+  const s = j.saju;
+  const pillars = s ? ['year', 'month', 'day', 'hour'].map((k) => s.saju.pillars[k]?.hanja).filter(Boolean).join(' ') : '';
+  const THEN_NOW = [
+    ['신분', '태어난 집안이 평생을 정했다', '하는 일과 실력이 자리를 정한다'],
+    ['일', j.then, j.now[0]],
+    ['기질', '그 자리에 맞춰 살아야 했다', j.now[1]],
+    ['길', '한 번 정해지면 바꾸기 어려웠다', j.now[2]],
+  ];
+  return `<section class="card r-joseon">
+    <p class="r-eye-kicker">조선시대였다면 ${esc(name)}${name === '나' ? '는' : '은'}</p>
+    <h2 class="r-eye-name">${esc(j.title)}<span>${esc(j.name)}</span></h2>
+    <figure class="r-joseon-pic">${joseonScene(j, P.metrics, P.gender)}</figure>
+    <p class="r-joseon-why">${pillars ? `사주 <b>${pillars}</b> · ` : ''}${esc(j.why.join(' · '))}</p>
+    <h3>오늘로 옮기면</h3>
+    <p class="hint">조선과 지금은 사회가 다르니, 같은 기질도 오늘의 조건으로 바꿔 읽어야 해요.</p>
+    <ol class="r-thennow">${THEN_NOW.map(([k, a, b]) => `<li><small>${k}</small><span class="then">그때 · ${esc(a)}</span><span class="now">지금 · ${esc(b)}</span></li>`).join('')}</ol>
+    ${s ? '' : '<p class="fine">생년월일을 넣으면 사주까지 함께 봐요. 지금은 관상만으로 골랐어요.</p>'}
+    <p class="fine">원전에 없는 재미 해석이에요. 사주의 ${Object.entries(s?.groups ?? {}).map(([k, n]) => `${GROUP_NAME[k].slice(0, 2)} ${n}`).join(' · ') || '십성'}과 관상의 자리를 엮어 골랐어요.</p>
+  </section>`;
+}
+
 function render() {
   const { brief, reading, forms, lead } = X;
   const age = P.birthYear ? P.thisYear - P.birthYear + 1 : null;
@@ -107,6 +132,8 @@ function render() {
       <h1 class="r-name">${esc(name)}의 관상</h1>
       <p class="r-meta">${[P.birthYear ? `${P.birthYear}년생` : '', P.gender === 'm' ? '남' : P.gender === 'f' ? '여' : '', age ? `세는 나이 ${age}세` : '', P.forehead?.status === 'visible' ? '이마 드러냄 ✓' : '', P.metrics && Number.isFinite(P.metrics.scanNoseHeight) ? '고개 돌리기 스캔 ✓' : P.metrics ? '정면만 봄' : ''].filter(Boolean).join(' · ')}</p>
     </header>
+
+    ${X.joseon ? joseonCard(X.joseon, name) : ''}
 
     ${P.metrics ? `<section class="card r-eye">
       <p class="r-eye-kicker">${esc(name)}의 대표 부위는 <b>${esc(lead.organName)}</b></p>

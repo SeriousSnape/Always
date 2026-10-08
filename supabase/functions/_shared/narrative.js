@@ -46,7 +46,7 @@ const factOf = (id, j) => ({
  * @param {Array} yearly yearlyFlow() 결과
  * @param {{birthYear:number, gender:'m'|'f'|null, worry?:string, thisYear:number}} who
  */
-export function buildBrief(reading, yearly, who, { eye = null, badForms = [], complexion = null } = {}) {
+export function buildBrief(reading, yearly, who, { eye = null, badForms = [], complexion = null, joseon = null } = {}) {
   const all = {};
   for (const [k, j] of Object.entries(reading.results)) {
     if (j.grade !== 'unread') all[k] = factOf(k, j);
@@ -78,6 +78,13 @@ export function buildBrief(reading, yearly, who, { eye = null, badForms = [], co
       look: `${b.organName}이 원전 그림의 ${b.name}과 닮았다`, quotes: [{ q: b.q, s: `麻衣 ${b.page}`, t: b.t }],
     };
   }
+  // 조선시대의 나(사주 십성 + 관상) — 재미 해석, 등급 없음
+  if (joseon) {
+    all.joseon = {
+      id: 'joseon', part: `조선시대의 나: ${joseon.title} ${joseon.name}`, grade: null,
+      look: `${joseon.then}. 근거: ${joseon.why.join(', ')}`, quotes: [],
+    };
+  }
   const judged = Object.values(all).filter((f) => f.grade);
   const pick = (spec) => {
     if (spec === 'bad') return [...judged.filter((f) => f.grade === 'bad'), all.method];
@@ -85,7 +92,7 @@ export function buildBrief(reading, yearly, who, { eye = null, badForms = [], co
     if (spec === 'all') return judged.filter((f) => f.id !== 'eye' && !f.id.startsWith('form:'));
     if (spec === 'summary') {
       const s = reading.summary;
-      return [...judged.filter((f) => f.id === 'eye' || f.id === s.best?.key || f.id === s.worst?.key || f.id === 'gamchal' || f.id === 'jaebaek'), all.method];
+      return [...judged.filter((f) => f.id === 'eye' || f.id === s.best?.key || f.id === s.worst?.key || f.id === 'gamchal' || f.id === 'jaebaek'), all.method, ...(all.joseon ? [all.joseon] : [])];
     }
     if (spec === 'yearly') return [];
     if (spec === 'complexion') {
@@ -142,6 +149,7 @@ export const SYSTEM_PROMPT = `너는 관상 해설가다. 『增補麻衣相法�
 칸마다 쓰는 것
 - title: 그 칸의 핵심을 한 줄로(30자 이내). 궁금해서 펼치고 싶게. fixedTitle이 있으면 그대로 쓴다.
 - body: 그 칸의 facts만 가지고 쓴다(120~500자, sseunsori·gomin은 1000자까지). grade가 null인 fact는 판정이 아니라 총론 근거다. facts에 없는 부위·판정은 말하지 않는다. 측정하지 않은 것(귀, 눈빛, 목소리, 기색 등)이 있다는 말도 하지 않는다.
+- joseon fact(조선시대의 나)가 있으면 hanmadi에서 한 줄로 받아 '그때는 이랬을 사람, 오늘로 옮기면'으로 잇는다. 원전 판정이 아니라 재미 해석임을 흐리지 않는다.
 - eye fact(닮은 동물형 눈)가 있으면 hanmadi는 그 눈으로 시작한다. 원전의 길한 뜻만 골라 둔 것이니 가장 긍정적으로, 자랑하고 싶게 풀어 준다.
 - quotes: 그 칸 facts의 quotes[].q 가운데 본문에서 다룬 것을 글자 그대로 1~2개. 없으면 빈 배열.
 

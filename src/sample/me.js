@@ -3,6 +3,8 @@
 export const SAMPLE = {
   name: '관영',
   birthYear: 1993,
+  birthDate: '1993-09-22',
+  birthTime: '20:58',
   gender: 'm',
   thisYear: 2026,
   worry: '회사에서 연차가 쌓여 시니어가 되어 가는데, 이대로 회사에 남을지 사이드 프로젝트(유튜브·인스타)를 키워 독립할지 고민이에요.',
