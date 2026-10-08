@@ -31,7 +31,7 @@ const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
  * @returns {{X:Float64Array, Y:Float64Array, D:Float64Array, angles:number[], residual:number}|null}
  */
 export function solveDepth(frontal, turned, iterations = 8) {
-  if (!frontal.length || turned.length < 4) return null;
+  if (!frontal.length || turned.length < 2) return null;
   const f0 = frontal[0];
   const px = (lm, i) => ({ x: lm[i].x * f0.w, y: lm[i].y * f0.h });
   const unit = Math.hypot(px(f0.landmarks, P.eyeInR).x - px(f0.landmarks, P.eyeInL).x, px(f0.landmarks, P.eyeInR).y - px(f0.landmarks, P.eyeInL).y);
@@ -169,9 +169,12 @@ export function yawDeg(y) {
   return Math.sign(y) * 40;
 }
 
-// 각도별 10칸: 양쪽 6·12·18·24·30도. 같은 방향·같은 각도는 한 번만 찍는다.
-export const ANGLE_BINS = [-30, -24, -18, -12, -6, 6, 12, 18, 24, 30];
-export const BIN_TOL = 2.5;
+// 3장: 정면 + 양쪽 25도. 각 장은 그 각도에서 0.3초 연사(5프레임)해 흔들림을 줄인다.
+// 표준 3D 모델 시험(화면 흔들림 1.5px): 3장×5프레임이 10장×1프레임과 같거나 더 정확,
+// 3장×1프레임은 콧대 혹 오차가 3배 — 연사가 필수. 15도는 각도가 작아 오차가 커서 25도로.
+export const ANGLE_BINS = [-25, 25];
+export const BIN_TOL = 4;
+export const BURST = 5;
 /** 지금 각도가 비어 있는 칸에 들어가면 그 칸 */
 export function binFor(deg, filled) {
   return ANGLE_BINS.find((b) => !filled.has(b) && Math.abs(deg - b) <= BIN_TOL) ?? null;

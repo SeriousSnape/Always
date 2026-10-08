@@ -56,14 +56,21 @@ test('정면 한 장 깊이(시작값)보다 스캔이 정답에 가깝다', () 
   assert.ok(err(profileMetrics(r)) < err(profileMetrics(start)) / 3);
 });
 
-test('각도별 칸: 같은 방향·같은 각도는 한 번만, 각도 대응표는 표준 모델과 맞다', async () => {
+test('3장 스캔: 정면 + 양쪽 25도, 같은 방향은 한 번만', async () => {
   const { binFor, yawDeg, quickYaw, ANGLE_BINS } = await import('../src/lib/scan.js');
+  assert.deepEqual(ANGLE_BINS, [-25, 25]);
   const filled = new Set();
-  for (const d of [5.5, 6.2, 6.8, -6, 11, 12.5, -30, 29]) {
+  for (const d of [10, 24, 26, -27, 30, -10]) {
     const b = binFor(d, filled);
     if (b !== null) filled.add(b);
   }
-  assert.deepEqual([...filled].sort((a, b) => a - b), [-30, -6, 6, 12, 30]);
-  assert.equal(ANGLE_BINS.length, 10);
+  assert.deepEqual([...filled].sort((a, b) => a - b), [-25, 25]);
   for (const d of [10, 20, 30]) assert.ok(Math.abs(yawDeg(quickYaw(frame(d).landmarks)) - d) < 1.5);
+});
+
+test('3장(각 5프레임 연사)으로도 깊이를 되찾는다', () => {
+  const fr = Array.from({ length: 5 }, () => frame(0));
+  const tu = [-25, 25].flatMap((a) => Array.from({ length: 5 }, () => frame(a)));
+  const got = profileMetrics(solveDepth(fr, tu));
+  for (const k of ['scanNoseHeight', 'scanRadix', 'scanEyeProt', 'scanChin']) assert.ok(Math.abs(got[k] - truth[k]) < 0.06, k);
 });

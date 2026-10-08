@@ -12,7 +12,7 @@ import { buildPayload, sendPayload, ageBandOf, AGE_BANDS } from './lib/contribut
 import { SUPABASE, COLLECT_ON, SERVER_ON } from './config.js';
 import { prepare } from './lib/prepare.js';
 import { createOrder } from './paid.js';
-import { solveDepth, profileMetrics, quickYaw, yawDeg, binFor, ANGLE_BINS } from './lib/scan.js';
+import { solveDepth, profileMetrics, quickYaw, yawDeg, binFor, ANGLE_BINS, BURST } from './lib/scan.js';
 import { drawGuide, inFrame, thumb } from './scanview.js';
 
 const $ = (s) => document.querySelector(s);
@@ -214,14 +214,14 @@ $('#btn-camera').addEventListener('click', async () => {
   }
 });
 
-// 고개 돌리기 스캔: 정면 → 각도별 10칸(양쪽 6·12·18·24·30도). 같은 방향·같은 각도는 한 번만.
-// 여러 각도의 얼굴 점으로 코 높이·콧대 곧음 같은 깊이를 직접 잰다.
+// 고개 돌리기 스캔: 정면 → 한쪽 25도 → 반대쪽 25도, 3장. 각 장은 연사 5프레임.
+// 세 방향의 얼굴 점으로 코 높이·콧대 곧음 같은 깊이를 직접 잰다.
 function renderPano(shots, frontImg) {
   // 화면은 거울처럼 뒤집혀 보이므로, 보이는 방향대로 + 각도 → 왼쪽
   const order = [...ANGLE_BINS].sort((a, b) => b - a);
   const tile = (deg) => {
     const img = shots.get(deg);
-    return `<li class="${img ? 'got' : ''}">${img ? `<img src="${img}" alt="">` : ''}<b>${Math.abs(deg)}°</b></li>`;
+    return `<li class="${img ? 'got' : ''}">${img ? `<img src="${img}" alt="">` : ''}<b>${deg > 0 ? '왼쪽' : '오른쪽'}</b></li>`;
   };
   const half = order.length / 2;
   $('#pano').innerHTML = [
@@ -229,7 +229,7 @@ function renderPano(shots, frontImg) {
     `<li class="front${frontImg ? ' got' : ''}">${frontImg ? `<img src="${frontImg}" alt="">` : ''}<b>정면</b></li>`,
     ...order.slice(half).map(tile),
   ].join('');
-  $('#scan-count').textContent = `각도 ${shots.size}/10장`;
+  $('#scan-count').textContent = `${shots.size + (frontImg ? 1 : 0)}/3장`;
 }
 
 $('#btn-shoot').addEventListener('click', () => {
@@ -240,6 +240,7 @@ $('#btn-shoot').addEventListener('click', () => {
   const frontal = [];
   const turned = [];
   const shots = new Map(); // 각도 → 작은 사진
+  const burst = new Map(); // 각도 → 모으는 중인 프레임
   let frontImg = null;
   let firstSide = 0;
   const t0 = performance.now();
@@ -259,7 +260,7 @@ $('#btn-shoot').addEventListener('click', () => {
     let scan = null;
     const left = turned.filter((f) => f.deg < 0).length;
     const right = turned.filter((f) => f.deg > 0).length;
-    if (left >= 2 && right >= 2) {
+    if (left >= BURST && right >= BURST) {
       const solved = solveDepth(frontal, turned);
       const angles = solved?.angles ?? [];
       if (solved && Math.min(...angles) < -10 && Math.max(...angles) > 10) scan = profileMetrics(solved);
@@ -271,7 +272,7 @@ $('#btn-shoot').addEventListener('click', () => {
       scan,
     );
     if (!scan) status('양쪽으로 충분히 돌리지 못해서 정면만으로 봤어요. 옆모습으로 보는 코의 형 등은 빠졌어요.');
-    else if (!complete) status(`각도 ${shots.size}/10장으로 봤어요.`);
+
   };
 
   live.onFrame = async ({ r, lm, frame, work, W, H }) => {
@@ -295,18 +296,28 @@ $('#btn-shoot').addEventListener('click', () => {
       }
       return;
     }
-    // 2) 각도별 칸: 비어 있는 칸의 각도에 들어오면 한 장
+    // 2) 양쪽 25도: 그 각도 안에 머무는 동안 5프레임을 모아 한 장으로
     const bin = binFor(deg, new Set(shots.keys()));
     if (bin !== null) {
-      shots.set(bin, thumb(work, lm, W, H));
-      turned.push(f);
-      renderPano(shots, frontImg);
-      if (!firstSide) firstSide = Math.sign(bin);
+      const got = burst.get(bin) ?? [];
+      got.push(f);
+      burst.set(bin, got);
+      say('그대로 잠깐!');
+      if (got.length >= BURST) {
+        shots.set(bin, thumb(work, lm, W, H));
+        turned.push(...got);
+        renderPano(shots, frontImg);
+        if (!firstSide) firstSide = Math.sign(bin);
+      }
+    } else {
+      // 각도를 벗어나면 모으던 것은 버린다(흔들린 장면이 섞이지 않게)
+      for (const b of ANGLE_BINS) if (!shots.has(b)) burst.delete(b);
     }
-    const side = (sg) => ANGLE_BINS.filter((b) => Math.sign(b) === sg && !shots.has(b)).length;
     if (shots.size === ANGLE_BINS.length) return finish(true);
-    if (firstSide && side(firstSide) === 0) say('이번엔 반대쪽으로 천천히 돌려요');
-    else if (firstSide) say(`같은 쪽으로 조금 더 천천히 (${side(firstSide)}칸 남음)`);
+    const sideLeft = firstSide && !shots.has(-firstSide * 25);
+    if (bin !== null) return;
+    if (!firstSide) say(Math.abs(deg) < 21 ? '천천히 한쪽으로 고개를 더 돌려요' : '조금 덜 돌려요');
+    else if (sideLeft) say(Math.sign(deg) === firstSide || Math.abs(deg) < 21 ? '좋아요! 이번엔 반대쪽으로 천천히' : '조금 덜 돌려요');
   };
 });
 
