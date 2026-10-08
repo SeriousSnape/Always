@@ -37,13 +37,19 @@
 
     <!-- 오른팔: 사발을 든 팔 -->
     <path d="M92 312 C 70 330 72 356 94 352 C 112 350 122 338 126 326" fill="#f7f3ea" stroke-width="2.2"/>
-    <!-- 손 -->
-    <path d="M118 330 q 10 -6 18 2 q 2 8 -6 10 q -8 2 -12 -4z" fill="#e9c6a2" stroke-width="1.8"/>
     <!-- 막걸리 사발 -->
     <path d="M104 318 q 22 12 44 0 q -2 18 -22 20 q -20 -2 -22 -20z" fill="#e8e1d0" stroke-width="2"/>
     <ellipse cx="126" cy="318" rx="22" ry="5" fill="#f4efe4" stroke-width="1.8"/>
     <ellipse cx="126" cy="318" rx="18" ry="3.4" fill="#e6dcc2" stroke="none"/>
     <path d="M110 326 q 16 6 32 0" fill="none" stroke="#2f4a7a" stroke-width="1.4"/>
+
+    <!-- 사발을 받쳐 든 손: 손바닥이 아래를 받치고 엄지가 테두리에 걸침 -->
+    <path d="M104 330 C 104 344 116 350 128 350 C 140 350 150 344 150 334 C 150 330 146 328 142 330 L 112 330 C 108 328 104 328 104 330 Z" fill="#e9c6a2" stroke-width="1.8"/>
+    <path d="M114 342 q 6 4 12 4 M126 346 q 8 0 14 -4 M136 338 q 6 -1 10 -4" fill="none" stroke-width="1.1"/>
+    <path d="M146 324 C 152 318 158 318 158 324 C 158 330 152 334 146 332" fill="#e9c6a2" stroke-width="1.8"/>
+    <!-- 무릎 위에 얹은 왼손 -->
+    <path d="M190 372 C 186 360 194 352 206 354 C 218 356 222 366 216 374 C 210 380 196 380 190 372 Z" fill="#e9c6a2" stroke-width="1.8"/>
+    <path d="M196 362 q 6 -2 10 2 M198 368 q 6 -2 12 1 M200 374 q 5 -1 10 0" fill="none" stroke-width="1.1"/>
 
     <!-- 술병(호리병) -->
     <path d="M246 400 c -26 0 -30 -30 -16 -44 c 6 -6 4 -14 2 -18 c -2 -8 4 -12 10 -12 c 6 0 12 4 10 12 c -2 4 -4 12 2 18 c 14 14 10 44 -8 44z" fill="#d8c9a3" stroke-width="2"/>
@@ -64,14 +70,18 @@
     <!-- 눈썹(희끗) -->
     <path d="M122 194 q 10 -8 22 -2" fill="none" stroke="#6b6158" stroke-width="3.2"/>
     <path d="M156 192 q 12 -6 22 2" fill="none" stroke="#6b6158" stroke-width="3.2"/>
-    <!-- 눈: 한쪽은 지그시, 한쪽은 똑바로 — 나를 본다 -->
-    <path d="M124 208 q 9 -6 18 0" fill="none" stroke-width="2"/>
-    <path d="M124 208 q 9 4 18 0" fill="#fbf7ee" stroke-width="1.4"/>
-    <circle cx="133" cy="207.5" r="3" fill="#2b2118" stroke="none"/>
-    <path d="M158 207 q 9 -3 18 1" fill="none" stroke-width="2.2"/>
-    <path d="M160 209 q 7 2 14 0" fill="none" stroke-width="1.2"/>
+    <!-- 눈: 두 눈 모두 나를 본다 -->
+    <path d="M123 208 q 10 -7 20 0 q -10 6 -20 0 z" fill="#fbf7ee" stroke-width="1.6"/>
+    <path d="M157 208 q 10 -7 20 0 q -10 6 -20 0 z" fill="#fbf7ee" stroke-width="1.6"/>
+    <circle cx="133" cy="207.6" r="3.2" fill="#2b2118" stroke="none"/>
+    <circle cx="167" cy="207.6" r="3.2" fill="#2b2118" stroke="none"/>
+    <circle cx="134" cy="206.4" r="0.9" fill="#fbf7ee" stroke="none"/>
+    <circle cx="168" cy="206.4" r="0.9" fill="#fbf7ee" stroke="none"/>
+    <!-- 윗눈꺼풀 선(지그시 웃는 눈매) -->
+    <path d="M121 206 q 12 -9 24 -1" fill="none" stroke-width="2.2"/>
+    <path d="M155 205 q 12 -8 24 1" fill="none" stroke-width="2.2"/>
     <!-- 눈가 웃음 주름 -->
-    <path d="M178 206 l 6 -2 M178 210 l 6 2" fill="none" stroke-width="1"/>
+    <path d="M180 205 l 5 -2 M180 209 l 5 2 M120 205 l -5 -2 M120 209 l -5 2" fill="none" stroke-width="1"/>
 
     <!-- 코 -->
     <path d="M150 210 q -4 18 -8 24 q 8 6 16 0" fill="none" stroke-width="1.8"/>
@@ -94,10 +104,6 @@
     <ellipse cx="150" cy="174" rx="68" ry="10" fill="none" stroke="#5a4b3c" stroke-width="0.8"/>
     <!-- 갓끈 -->
     <path d="M112 182 q -6 40 8 70 M188 182 q 6 40 -8 70" fill="none" stroke="#2b2118" stroke-width="1.4"/>
-    <g fill="#c8a35a" stroke="#5b3a24" stroke-width="0.8">
-      <circle cx="116" cy="210" r="2.4"/><circle cx="117" cy="222" r="2.4"/><circle cx="119" cy="234" r="2.4"/>
-      <circle cx="184" cy="210" r="2.4"/><circle cx="183" cy="222" r="2.4"/><circle cx="181" cy="234" r="2.4"/>
-    </g>
 
     <!-- 말풍선 같은 낙관 -->
     <rect x="24" y="22" width="30" height="30" rx="3" fill="#b23a2e" stroke="none"/>
